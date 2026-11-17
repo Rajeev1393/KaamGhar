@@ -77,7 +77,8 @@ export default function Dashboard({ expectedRole }: DashboardProps) {
     }
   }
 
-  if (authLoading || !user) return <div className="dashboard-loading"><span className="loading-dot" /> Setting up your workspace…</div>;
+  if (authLoading) return <div className="dashboard-loading" role="status"><span className="loading-dot" /> Checking your account…</div>;
+  if (!user) return <div className="dashboard-loading" role="status"><span className="loading-dot" /> Sign in is required to view this dashboard. <Link className="text-link" href={expectedRole === "admin" ? "/admin/login" : "/login"}>Go to sign in</Link></div>;
   return <DashboardShell user={user} onLogout={() => void logout()} title={expectedRole === "customer" ? "Your home, taken care of." : expectedRole === "worker" ? "Provider dashboard" : "The whole picture."}>
     {error && <div className="dashboard-alert"><span>{error}</span><button onClick={() => setError("")}><X size={15} /></button></div>}
     {expectedRole === "customer" && <CustomerDashboard user={user} refresh={refresh} onRefresh={() => setRefresh(refresh + 1)} notify={notify} />}
