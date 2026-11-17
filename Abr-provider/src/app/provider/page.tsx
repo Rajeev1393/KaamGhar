@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { api, formatDate, formatPrice } from "@/lib/api";
+import { ApiError, api, formatDate, formatPrice } from "@/lib/api";
 import type { Booking, BookingStatus, User, Worker } from "@/lib/types";
 
 type BookingFilter = "all" | "pending" | "confirmed" | "completed";
@@ -25,7 +25,12 @@ export default function ProviderPage() {
       .then(({ user: current }) => {
         if (current.role === "worker") setUser(current);
       })
-      .catch(() => setUser(null))
+      .catch((reason: unknown) => {
+        setUser(null);
+        if (!(reason instanceof ApiError) || (reason.status !== 401 && reason.status !== 403)) {
+          setLoginError(reason instanceof Error ? reason.message : "Could not check your provider account.");
+        }
+      })
       .finally(() => setCheckingSession(false));
   }, []);
 

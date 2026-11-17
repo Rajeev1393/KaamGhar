@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, ArrowUpRight, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, ChevronDown, CircleDollarSign, ClipboardList, Clock3, Home, LayoutDashboard, LogOut, MapPin, Menu, RefreshCw, ShieldCheck, Star, Users, X } from "lucide-react";
-import { api, formatDate, formatPrice } from "@/lib/api";
+import { ApiError, api, formatDate, formatPrice } from "@/lib/api";
 import type { Booking, Role, ServiceCategory, User, VerificationDocument, Worker } from "@/lib/types";
 import DetectCityButton from "@/components/DetectCityButton";
 
@@ -62,8 +62,12 @@ export default function Dashboard({ expectedRole }: DashboardProps) {
         return;
       }
       setUser(current);
-    }).catch(() => {
-      router.replace(expectedRole === "admin" ? "/admin/login" : "/login");
+    }).catch((reason: unknown) => {
+      if (reason instanceof ApiError && (reason.status === 401 || reason.status === 403)) {
+        router.replace(expectedRole === "admin" ? "/admin/login" : "/login");
+        return;
+      }
+      setError(reason instanceof Error ? reason.message : "Could not verify your account.");
     }).finally(() => setAuthLoading(false));
   }, [expectedRole, router]);
 
@@ -78,7 +82,7 @@ export default function Dashboard({ expectedRole }: DashboardProps) {
   }
 
   if (authLoading) return <div className="dashboard-loading" role="status"><span className="loading-dot" /> Checking your account…</div>;
-  if (!user) return <div className="dashboard-loading" role="status"><span className="loading-dot" /> Sign in is required to view this dashboard. <Link className="text-link" href={expectedRole === "admin" ? "/admin/login" : "/login"}>Go to sign in</Link></div>;
+  if (!user) return <div className="dashboard-loading" role={error ? "alert" : "status"}><span className="loading-dot" /> {error || "Sign in is required to view this dashboard."} {error ? <button className="button button-outline" onClick={() => window.location.reload()}>Retry</button> : <Link className="text-link" href={expectedRole === "admin" ? "/admin/login" : "/login"}>Go to sign in</Link>}</div>;
   return <DashboardShell user={user} onLogout={() => void logout()} title={expectedRole === "customer" ? "Your home, taken care of." : expectedRole === "worker" ? "Provider dashboard" : "The whole picture."}>
     {error && <div className="dashboard-alert"><span>{error}</span><button onClick={() => setError("")}><X size={15} /></button></div>}
     {expectedRole === "customer" && <CustomerDashboard user={user} refresh={refresh} onRefresh={() => setRefresh(refresh + 1)} notify={notify} />}

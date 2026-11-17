@@ -1,3 +1,10 @@
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const response = await fetch(`/api/${path.replace(/^\/+/, "")}`, {
@@ -13,7 +20,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   if (!response.ok) {
     const message =
       typeof payload.message === "string" ? payload.message : "Something went wrong. Please try again.";
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
   return payload as T;
 }
