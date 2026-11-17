@@ -348,6 +348,59 @@ test("role authorization denies users without the required role", async () => {
   assert.equal(passedError, undefined);
 });
 
+test("admin can approve a professional without verification documents", async () => {
+  const originalFindOne = Worker.findOne;
+  const originalFindOneAndUpdate = Worker.findOneAndUpdate;
+  let update;
+  let responseBody;
+  Worker.findOne = () => ({
+    select: async () => ({ verificationDocuments: [] })
+  });
+  Worker.findOneAndUpdate = async (_filter, changes) => {
+    update = changes;
+    return { approvalStatus: "approved" };
+  };
+
+  try {
+    await adminController.updateProfessionalStatus(
+      { params: { id: "0123456789abcdef01234567" }, body: { status: "approved" } },
+      { json(payload) { responseBody = payload; } }
+    );
+    assert.equal(update.$set.approvalStatus, "approved");
+    assert.equal(update.$set.available, true);
+    assert.equal(responseBody.worker.approvalStatus, "approved");
+  } finally {
+    Worker.findOne = originalFindOne;
+    Worker.findOneAndUpdate = originalFindOneAndUpdate;
+  }
+});
+
+test("admin cannot approve until uploaded verification documents are verified", async () => {
+  const originalFindOne = Worker.findOne;
+  const originalFindOneAndUpdate = Worker.findOneAndUpdate;
+  let updateCalled = false;
+  Worker.findOne = () => ({
+    select: async () => ({ verificationDocuments: [{ status: "pending" }] })
+  });
+  Worker.findOneAndUpdate = async () => {
+    updateCalled = true;
+  };
+
+  try {
+    await assert.rejects(
+      adminController.updateProfessionalStatus(
+        { params: { id: "0123456789abcdef01234567" }, body: { status: "approved" } },
+        { json() {} }
+      ),
+      (error) => error.status === 409
+    );
+    assert.equal(updateCalled, false);
+  } finally {
+    Worker.findOne = originalFindOne;
+    Worker.findOneAndUpdate = originalFindOneAndUpdate;
+  }
+});
+
 test("web panels are served and protected APIs reject anonymous requests", async (t) => {
   const server = app.listen(0);
   await new Promise((resolve) => server.once("listening", resolve));

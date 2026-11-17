@@ -48,7 +48,7 @@ All browser requests use `/api/*`; `src/app/api/[...path]/route.ts` forwards the
 - `/api/admin/categories` (GET, POST), `/api/admin/overview`, `/api/admin/professionals` (GET, POST), `/api/admin/professionals/:id/status`
 - `/api/admin/professionals/:id/documents/:documentId`, `/api/admin/users`, `/api/admin/users/:id/status`
 
-Professional verification documents are uploaded from the `/worker` profile and stored outside the public directory. Only administrators can view and review them. Documents are limited to PDF/JPG/PNG, 5 MB each, and 10 per profile. A professional cannot be approved until every uploaded document is verified. The admin can also view customer/professional accounts and deactivate or reactivate them.
+Professional verification documents are uploaded from the `/worker` profile and stored outside the public directory. Only administrators can view and review them. Documents are limited to PDF/JPG/PNG, 5 MB each, and 10 per profile. Documents are optional; if any are uploaded, every document must be verified before the professional can be approved. The admin can also view customer/professional accounts and deactivate or reactivate them.
 
 Location lookup requires a user click and browser geolocation permission. Coordinates are sent to the frontend's reverse-lookup route and OpenStreetMap Nominatim to resolve a city; only the resulting city is used to search the marketplace. The location button explains this to the user. Booking requests select 1–12 hours and the backend calculates the total from the professional's saved hourly rate.
 

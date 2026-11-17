@@ -164,10 +164,7 @@ async function updateProfessionalStatus(req, res) {
   if (status === "approved") {
     const workerToApprove = await Worker.findOne({ _id: req.params.id, deletedAt: { $exists: false } }).select("verificationDocuments");
     if (!workerToApprove) throw httpError(404, "Professional profile was not found.");
-    if (
-      workerToApprove.verificationDocuments.length === 0 ||
-      workerToApprove.verificationDocuments.some((document) => document.status !== "verified")
-    ) {
+    if (workerToApprove.verificationDocuments.some((document) => document.status !== "verified")) {
       throw httpError(409, "Verify all uploaded documents before approving this professional.");
     }
   }

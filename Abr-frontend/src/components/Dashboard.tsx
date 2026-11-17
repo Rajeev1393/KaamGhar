@@ -460,7 +460,7 @@ function AdminDashboard({ refresh, onRefresh, notify }: { refresh: number; onRef
       </div>
       {workersLoading ? <LoadingLine /> : workers.length ? <div className="admin-pro-list">{workers.map((worker) => {
         const documents = worker.verificationDocuments || [];
-        const canApprove = documents.length > 0 && documents.every((document) => document.status === "verified");
+        const canApprove = documents.length === 0 || documents.every((document) => document.status === "verified");
         return <article className="admin-pro-item" key={worker._id}>
           <span className="mini-avatar">{worker.name[0]}</span>
           <div className="admin-pro-info">
