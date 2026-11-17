@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>My bookings — KaamGhar</title><link rel="stylesheet" href="/portal.css" /><script src="/dashboard.js" defer></script></head>
+  <body data-panel="customer">
+    <div class="dashboard-shell">
+      <aside class="sidebar">
+        <a class="brand sidebar-brand" href="/"><span class="brand-mark">k</span><span>kaam<span class="brand-accent">ghar</span></span></a>
+        <div class="side-label">YOUR SPACE</div>
+        <a class="side-link active" href="/customer"><span>▦</span>My bookings</a>
+        <a class="side-link" href="/#professionals"><span>⌕</span>Find a professional</a>
+        <div class="sidebar-bottom"><a class="side-link" href="/"><span>↖</span>Back to marketplace</a><button id="logout-button" class="side-link logout-button"><span>⇥</span>Sign out</button></div>
+      </aside>
+      <main class="dashboard-main">
+        <header class="dashboard-top"><div><p class="portal-eyebrow">YOUR KAAMGHAR</p><h1>My bookings</h1></div><div class="top-user"><span id="user-avatar">K</span><div><strong id="user-name">Customer</strong><small>Customer account</small></div></div></header>
+        <section class="welcome-banner"><div><span class="banner-kicker">GOOD TO SEE YOU</span><h2>Home help, in one place.</h2><p>Keep up with every service request and your trusted local pros.</p></div><a href="/#professionals">Find a pro <span>→</span></a></section>
+        <section class="panel-card"><div class="panel-card-head"><div><p class="portal-eyebrow">YOUR SERVICE HISTORY</p><h2>All bookings</h2></div><button class="subtle-button" id="refresh-button">Refresh ↻</button></div><div id="customer-bookings" class="table-wrap"><div class="panel-loading">Loading your bookings…</div></div></section>
+      </main>
+    </div>
+  </body>
+</html>

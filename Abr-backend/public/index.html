@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Find trusted home service professionals near you and book a visit in minutes."
+    />
+    <title>KaamGhar — Ghar ke kaam, aasaan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="KaamGhar home">
+        <span class="brand-mark">k</span>
+        <span>kaam<span class="brand-accent">ghar</span></span>
+      </a>
+      <nav class="top-nav" aria-label="Main navigation">
+        <a href="#services">Services</a>
+        <a href="#professionals">Our professionals</a>
+      </nav>
+      <a class="list-worker" href="/login">Sign in <span>↗</span></a>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-content">
+          <div class="eyebrow"><span class="live-dot"></span> YOUR NEIGHBOURHOOD, SORTED</div>
+          <h1>Ghar ke kaam,<br /><span>ab aasaan.</span></h1>
+          <p class="hero-copy">
+            Trusted professionals for all the little things that make a house a home.
+          </p>
+          <div class="search-panel">
+            <label class="search-field">
+              <span class="field-icon">⌕</span>
+              <span class="sr-only">Search for a service</span>
+              <input id="search-input" type="search" placeholder="What do you need help with?" />
+            </label>
+            <span class="search-divider"></span>
+            <label class="city-field">
+              <span class="field-icon">⌖</span>
+              <span class="sr-only">Select your city</span>
+              <select id="city-select" aria-label="Select your city">
+                <option value="">All cities</option>
+                <option>Delhi</option>
+                <option>Mumbai</option>
+                <option>Bengaluru</option>
+              </select>
+            </label>
+            <button id="search-button" class="search-button" type="button">Find help <span>→</span></button>
+          </div>
+          <div class="hero-proof">
+            <div class="proof-avatars" aria-hidden="true">
+              <span>R</span><span>S</span><span>P</span><span>+</span>
+            </div>
+            <span><strong>500+</strong> happy homes in your neighbourhood</span>
+          </div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="sun-shape"></div>
+          <div class="art-caption"><span class="sparkle">✳</span> GOOD HELP. GOOD PEOPLE.</div>
+          <div class="person-card">
+            <div class="person-illustration">
+              <div class="person-hair"></div>
+              <div class="person-face"><span class="eye eye-left"></span><span class="eye eye-right"></span><span class="smile"></span></div>
+              <div class="person-neck"></div>
+              <div class="person-shirt"><span class="shirt-pocket"></span></div>
+              <div class="tool-toolbox"><span></span><span></span><span></span></div>
+            </div>
+            <div class="floating-note"><span class="note-check">✓</span><span><strong>Verified pros</strong><small>At your doorstep</small></span></div>
+            <div class="floating-rating"><span>★</span> 4.9 <small>loved by neighbours</small></div>
+          </div>
+          <div class="art-scribble">made for<br />real life</div>
+        </div>
+        <div class="hero-bottom-note">SMALL FIXES. BIG RELIEF. <span>✳</span></div>
+      </section>
+
+      <section id="services" class="services-section section-wrap">
+        <div class="section-heading">
+          <div>
+            <div class="eyebrow muted-eyebrow">HOW CAN WE HELP?</div>
+            <h2>The right help, <span>right here.</span></h2>
+          </div>
+          <p>Good people for the jobs you don't have time for.</p>
+        </div>
+        <div class="service-grid" id="service-grid">
+          <button class="service-tile selected" data-category="All services" type="button">
+            <span class="service-icon icon-all">✳</span><span>All services</span>
+          </button>
+          <button class="service-tile" data-category="Plumber" type="button">
+            <span class="service-icon icon-plumber">⌁</span><span>Plumbing</span>
+          </button>
+          <button class="service-tile" data-category="Electrician" type="button">
+            <span class="service-icon icon-electrician">ϟ</span><span>Electrical</span>
+          </button>
+          <button class="service-tile" data-category="Cleaning" type="button">
+            <span class="service-icon icon-cleaning">✧</span><span>Cleaning</span>
+          </button>
+          <button class="service-tile" data-category="AC Repair" type="button">
+            <span class="service-icon icon-ac">❋</span><span>AC repair</span>
+          </button>
+          <button class="service-tile" data-category="Carpenter" type="button">
+            <span class="service-icon icon-carpenter">⌑</span><span>Carpentry</span>
+          </button>
+          <button class="service-tile" data-category="Salon" type="button">
+            <span class="service-icon icon-salon">✿</span><span>At-home salon</span>
+          </button>
+        </div>
+      </section>
+
+      <section id="professionals" class="pros-section section-wrap">
+        <div class="section-heading pros-heading">
+          <div>
+            <div class="eyebrow muted-eyebrow">GOOD HANDS, CLOSE BY</div>
+            <h2>Meet your <span>local pros.</span></h2>
+          </div>
+          <div class="pros-actions"><span id="results-count"></span><button id="clear-filters" type="button">Clear filters <span>↗</span></button></div>
+        </div>
+        <div id="worker-grid" class="worker-grid" aria-live="polite">
+          <div class="loading-state">Finding good people near you<span>...</span></div>
+        </div>
+        <div class="bottom-cta">
+          <span class="cta-star">✳</span>
+          <div><strong>Are you a local professional?</strong><span>Good work deserves to be found.</span></div>
+          <a href="/register?role=worker">Join our community <span>→</span></a>
+        </div>
+      </section>
+    </main>
+
+    <footer><a class="brand footer-brand" href="/"><span class="brand-mark">k</span><span>kaam<span class="brand-accent">ghar</span></span></a><span>Made for the everyday. © 2026 KaamGhar</span></footer>
+
+    <dialog id="booking-dialog" class="booking-dialog">
+      <form id="booking-form" class="booking-form">
+        <button class="dialog-close" type="button" aria-label="Close booking form">×</button>
+        <div class="eyebrow muted-eyebrow">LET'S GET IT SORTED</div>
+        <h2>Book a <span id="booking-profession">professional</span></h2>
+        <p id="booking-intro" class="booking-intro">Share a few details and they’ll be in touch to confirm.</p>
+        <input id="booking-worker-id" name="workerId" type="hidden" />
+        <label>Service address<textarea name="address" required minlength="8" maxlength="300" rows="2" placeholder="House number, street, area, city"></textarea></label>
+        <label>Preferred date & time<input name="scheduledAt" required type="datetime-local" /></label>
+        <label>How many hours?<select name="durationHours"><option value="1">1 hour</option><option value="2">2 hours</option><option value="3">3 hours</option><option value="4">4 hours</option><option value="6">6 hours</option><option value="8">8 hours</option><option value="12">12 hours</option></select></label>
+        <p id="booking-estimate" class="booking-intro"></p>
+        <label>Anything else? <span class="optional">(optional)</span><textarea name="notes" maxlength="500" rows="2" placeholder="Tell us a little more about the job"></textarea></label>
+        <p id="booking-message" class="form-message" aria-live="polite"></p>
+        <button class="submit-booking" type="submit">Request a booking <span>→</span></button>
+        <p class="privacy-note">No payment now. The professional will confirm your booking.</p>
+      </form>
+    </dialog>
+  </body>
+</html>

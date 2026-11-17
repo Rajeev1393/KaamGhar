@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign in — KaamGhar</title>
+    <link rel="stylesheet" href="/portal.css" />
+    <script src="/auth.js" defer></script>
+  </head>
+  <body class="auth-page">
+    <a class="brand auth-brand" href="/"><span class="brand-mark">k</span><span>kaam<span class="brand-accent">ghar</span></span></a>
+    <main class="auth-layout">
+      <section class="auth-story">
+        <div class="auth-kicker">GOOD PEOPLE. BETTER DAYS.</div>
+        <h1>Home help,<br /><span>handled.</span></h1>
+        <p>Find trusted neighbourhood professionals, manage every booking, and keep life moving.</p>
+        <div class="auth-story-note"><span>✳</span> A better way to get the little things done.</div>
+      </section>
+      <section class="auth-card">
+        <div id="auth-mode-label" class="portal-eyebrow">WELCOME BACK</div>
+        <h2 id="auth-title">Sign in to KaamGhar</h2>
+        <p id="auth-subtitle" class="auth-subtitle">Your home services, all in one place.</p>
+        <div class="auth-tabs" role="tablist">
+          <button type="button" class="auth-tab active" data-mode="login">Sign in</button>
+          <button type="button" class="auth-tab" data-mode="register">Create account</button>
+        </div>
+        <form id="auth-form">
+          <div class="register-fields hidden">
+            <label>Full name<input name="name" autocomplete="name" minlength="2" maxlength="80" placeholder="Your name" /></label>
+            <label>Phone number<input name="phone" type="tel" autocomplete="tel" maxlength="20" placeholder="+91 98765 43210" /></label>
+            <label class="role-label">I want to
+              <select name="role" id="account-role"><option value="customer">Book home services</option><option value="worker">Offer my professional services</option></select>
+            </label>
+            <div id="worker-fields" class="hidden">
+              <div class="form-pair">
+                <label>Profession<input name="profession" maxlength="80" placeholder="e.g. Licensed electrician" /></label>
+                <label>Service category<input name="category" maxlength="60" placeholder="e.g. Electrician" /></label>
+              </div>
+              <div class="form-pair">
+                <label>City<input name="city" maxlength="80" placeholder="Your service city" /></label>
+                <label>Experience (years)<input name="experience" type="number" min="0" max="60" placeholder="5" /></label>
+              </div>
+              <label>Hourly rate (₹)<input name="price" type="number" min="1" max="1000000" placeholder="299" /></label>
+              <label>About your service<textarea name="description" minlength="10" maxlength="300" rows="2" placeholder="Describe the work you do and what customers can expect."></textarea></label>
+              <p class="form-hint">Your professional listing goes live after admin verification.</p>
+            </div>
+          </div>
+          <label>Email address<input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com" /></label>
+          <label>Password<input name="password" type="password" required minlength="8" maxlength="72" autocomplete="current-password" placeholder="At least 8 characters" /></label>
+          <p id="auth-message" class="auth-message" aria-live="polite"></p>
+          <button class="primary-button" type="submit"><span id="auth-submit-label">Sign in</span><span>→</span></button>
+        </form>
+        <a class="back-home" href="/">← Back to home</a>
+      </section>
+    </main>
+    <footer class="portal-footer">© 2026 KaamGhar · Good work, good people.</footer>
+  </body>
+</html>

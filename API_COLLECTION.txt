@@ -1,0 +1,114 @@
+KAAMGHAR API COLLECTION
+=======================
+
+Backend base URL
+----------------
+PC:                 http://localhost:4000
+Android emulator:   http://10.0.2.2:4000
+Physical Android:   http://<PC-LAN-IP>:4000
+
+Authentication
+--------------
+POST   /api/auth/register
+       Create customer or professional account.
+
+POST   /api/auth/login
+       Sign in as a customer/professional. Save and send the user session cookie.
+
+POST   /api/auth/logout
+       Sign out and clear the customer/professional session.
+
+GET    /api/auth/me
+       Get the currently signed-in customer/professional account.
+
+POST   /api/admin/auth/login
+       Sign in as an admin using a separate admin session cookie.
+
+POST   /api/admin/auth/logout
+       Sign out and clear only the admin session.
+
+GET    /api/admin/auth/me
+       Get the currently signed-in admin account.
+
+Marketplace and professionals
+-----------------------------
+GET    /api/workers
+       List approved professionals. Optional query parameters:
+       category, city, search.
+
+GET    /api/workers/categories
+       List service categories.
+
+GET    /api/workers/me
+       Get the signed-in professional's profile.
+
+PATCH  /api/workers/me
+       Update the signed-in professional's profile or availability.
+
+POST   /api/workers/me/documents
+       Upload a verification document (multipart form fields: document, type).
+
+Bookings
+--------
+POST   /api/bookings
+       Create a booking. Body fields: workerId, address, scheduledAt;
+       optional fields: durationHours, notes.
+
+GET    /api/bookings
+       List bookings visible to the signed-in customer, professional, or admin.
+
+PATCH  /api/bookings/:id/status
+       Update a booking status. Allowed actions depend on the signed-in role.
+
+Administration
+--------------
+GET    /api/admin/overview
+       Get admin dashboard statistics and recent bookings.
+
+GET    /api/admin/categories
+       List service categories.
+
+POST   /api/admin/categories
+       Add a category. Body fields: name; optional: label.
+
+GET    /api/admin/professionals?status=pending
+       List professional applications. status can be pending, approved, or rejected.
+
+POST   /api/admin/professionals
+       Create a professional account/application.
+
+PATCH  /api/admin/professionals/:id/status
+       Approve or reject a professional. Body: {"status":"approved"} or
+       {"status":"rejected"}.
+
+DELETE /api/admin/professionals/:id
+       Delete the employee login and profile and remove private documents.
+       Preserve booking history with the employee's identifying profile details
+       anonymized.
+
+PATCH  /api/admin/professionals/:id/documents/:documentId
+       Verify or reject a document. Body: {"status":"verified"} or
+       {"status":"rejected"}.
+
+GET    /api/admin/professionals/:id/documents/:documentId/file
+       View a private verification document.
+
+GET    /api/admin/users?role=customer
+       List customer accounts.
+
+GET    /api/admin/users?role=worker
+       List professional accounts.
+
+PATCH  /api/admin/users/:id/status
+       Activate or deactivate an account. Body: {"active":true} or
+       {"active":false}.
+
+Android notes
+-------------
+- These endpoints are served by the Express backend; Android does not need to use
+  the Next.js frontend proxy.
+- Keep the login response's Set-Cookie value in a cookie jar and send it with
+  authenticated requests. Admin endpoints require an admin session.
+- Admin uses a separate cookie from customer/professional sessions, so both can
+  remain signed in at the same time.
+- Replace :id, :documentId, and <PC-LAN-IP> with actual values.
