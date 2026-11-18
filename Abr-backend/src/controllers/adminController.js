@@ -102,7 +102,7 @@ async function createProfessional(req, res) {
 }
 
 async function overview(req, res) {
-  const [customers, professionals, pendingApprovals, pendingDocuments, bookings, revenue, recentBookings] =
+  const [customers, professionals, pendingApprovals, pendingDocuments, bookings, revenue, paymentsReceived, recentBookings] =
     await Promise.all([
       User.countDocuments({ role: "customer" }),
       Worker.countDocuments({ approvalStatus: "approved", deletedAt: { $exists: false } }),
@@ -117,6 +117,10 @@ async function overview(req, res) {
       Booking.aggregate([
         { $match: { status: "completed" } },
         { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+      ]),
+      Booking.aggregate([
+        { $match: { paymentStatus: { $in: ["paid", "refund_required"] } } },
+        { $group: { _id: null, total: { $sum: "$totalAmount" }, count: { $sum: 1 } } }
       ]),
       Booking.find()
         .populate("customer", "name")
@@ -133,10 +137,57 @@ async function overview(req, res) {
       pendingApprovals,
       pendingDocuments: pendingDocuments[0]?.total || 0,
       bookings,
-      completedRevenue: revenue[0] ? revenue[0].total : 0
+      completedRevenue: revenue[0] ? revenue[0].total : 0,
+      paymentsReceived: paymentsReceived[0] ? paymentsReceived[0].total : 0,
+      paymentsReceivedCount: paymentsReceived[0] ? paymentsReceived[0].count : 0
     },
     recentBookings
   });
+}
+
+async function listBookings(req, res) {
+  const bookings = await Booking.find()
+    .populate("customer", "name email phone")
+    .populate("worker", "name profession category city")
+    .sort({ createdAt: -1 })
+    .limit(500)
+    .lean();
+  res.json({ bookings });
+}
+
+async function getProviderPayoutTotals(workerIds) {
+  if (!workerIds.length) return new Map();
+  const summaries = await Booking.aggregate([
+    { $match: { worker: { $in: workerIds }, paymentStatus: "paid" } },
+    {
+      $group: {
+        _id: "$worker",
+        total: { $sum: { $ifNull: ["$totalAmount", 0] } },
+        pending: {
+          $sum: {
+            $cond: [
+              { $eq: ["$providerPayoutStatus", "cleared"] },
+              0,
+              { $ifNull: ["$totalAmount", 0] }
+            ]
+          }
+        },
+        cleared: {
+          $sum: {
+            $cond: [
+              { $eq: ["$providerPayoutStatus", "cleared"] },
+              { $ifNull: ["$totalAmount", 0] },
+              0
+            ]
+          }
+        }
+      }
+    }
+  ]);
+  return new Map(summaries.map((summary) => [
+    String(summary._id),
+    { total: summary.total, pending: summary.pending, cleared: summary.cleared }
+  ]));
 }
 
 async function listProfessionals(req, res) {
@@ -149,7 +200,75 @@ async function listProfessionals(req, res) {
     .sort({ createdAt: -1 })
     .limit(200)
     .lean();
-  res.json({ workers });
+  const payoutTotalsByWorker = await getProviderPayoutTotals(workers.map((worker) => worker._id));
+  res.json({
+    workers: workers.map((worker) => ({
+      ...worker,
+      earnings: payoutTotalsByWorker.get(String(worker._id)) || { total: 0, pending: 0, cleared: 0 }
+    }))
+  });
+}
+
+async function clearProfessionalPayouts(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) throw httpError(400, "Invalid professional id.");
+  if (req.body !== undefined && (!req.body || typeof req.body !== "object" || Array.isArray(req.body))) {
+    throw httpError(400, "Please submit valid payout details.");
+  }
+  let reference;
+  if (req.body?.reference !== undefined) {
+    if (typeof req.body.reference !== "string") throw httpError(400, "Payout reference must be text.");
+    reference = req.body.reference.trim();
+    if (!reference || reference.length > 100) {
+      throw httpError(400, "Payout reference must be between 1 and 100 characters.");
+    }
+  }
+  const worker = await Worker.findOne({ _id: req.params.id, deletedAt: { $exists: false } }).select("_id");
+  if (!worker) throw httpError(404, "Professional profile was not found.");
+
+  const session = await mongoose.startSession();
+  let payout;
+  try {
+    await session.withTransaction(async () => {
+      const pendingBookings = await Booking.find({
+        worker: worker._id,
+        paymentStatus: "paid",
+        providerPayoutStatus: { $ne: "cleared" }
+      })
+        .select("_id totalAmount")
+        .session(session)
+        .lean();
+      if (!pendingBookings.length) throw httpError(409, "There is no pending payout for this professional.");
+
+      const clearedAt = new Date();
+      const update = {
+        providerPayoutStatus: "cleared",
+        providerPayoutClearedAt: clearedAt,
+        providerPayoutClearedBy: req.user._id
+      };
+      if (reference) update.providerPayoutReference = reference;
+      const result = await Booking.updateMany(
+        {
+          _id: { $in: pendingBookings.map((booking) => booking._id) },
+          paymentStatus: "paid",
+          providerPayoutStatus: { $ne: "cleared" }
+        },
+        { $set: update },
+        { session }
+      );
+      if (result.modifiedCount !== pendingBookings.length) {
+        throw httpError(409, "Payout records changed. Refresh and try again.");
+      }
+      payout = {
+        amount: pendingBookings.reduce((total, booking) => total + (booking.totalAmount || 0), 0),
+        bookingCount: pendingBookings.length,
+        clearedAt,
+        reference: reference || null
+      };
+    });
+  } finally {
+    await session.endSession();
+  }
+  res.json({ message: "Payout marked as cleared.", payout });
 }
 
 async function updateProfessionalStatus(req, res) {
@@ -301,7 +420,21 @@ async function listUsers(req, res) {
     .sort({ createdAt: -1 })
     .limit(300)
     .lean();
-  res.json({ users });
+  const payoutTotalsByWorker = await getProviderPayoutTotals(
+    users.filter((account) => account.role === "worker" && account.worker?._id)
+      .map((account) => account.worker._id)
+  );
+  res.json({
+    users: users.map((account) => account.role === "worker" && account.worker
+      ? {
+          ...account,
+          worker: {
+            ...account.worker,
+            earnings: payoutTotalsByWorker.get(String(account.worker._id)) || { total: 0, pending: 0, cleared: 0 }
+          }
+        }
+      : account)
+  });
 }
 
 async function updateUserStatus(req, res) {
@@ -322,8 +455,10 @@ module.exports = {
   createCategory,
   createProfessional,
   listCategories,
+  listBookings,
   listUsers,
   overview,
+  clearProfessionalPayouts,
   sendDocument,
   updateDocumentStatus,
   updateProfessionalStatus,

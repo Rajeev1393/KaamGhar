@@ -1,50 +1,6 @@
 const mongoose = require("mongoose");
 const Booking = require("../models/Booking");
-const Worker = require("../models/Worker");
-const { requiredString } = require("../middleware/validate");
 const httpError = require("../utils/httpError");
-
-async function create(req, res) {
-  if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
-    throw httpError(400, "Please submit valid booking details.");
-  }
-  const workerId = req.body.workerId;
-  if (!mongoose.isValidObjectId(workerId)) throw httpError(400, "Choose a valid professional.");
-  const address = requiredString(req.body.address, "Address", 8, 300);
-  const durationHours = Number(req.body.durationHours);
-  if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 12) {
-    throw httpError(400, "Choose a booking duration between 1 and 12 hours.");
-  }
-  const notes = req.body.notes === undefined || req.body.notes === ""
-    ? ""
-    : requiredString(req.body.notes, "Notes", 1, 500);
-  const scheduledAt = new Date(req.body.scheduledAt);
-  if (!req.body.scheduledAt || Number.isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
-    throw httpError(400, "Choose a valid date and time in the future.");
-  }
-
-  const worker = await Worker.findOne({
-    _id: workerId,
-    available: true,
-    approvalStatus: "approved",
-    deletedAt: { $exists: false }
-  });
-  if (!worker) throw httpError(404, "This professional is not available.");
-
-  const booking = await Booking.create({
-    customer: req.user._id,
-    worker: worker._id,
-    customerName: req.user.name,
-    phone: req.user.phone,
-    email: req.user.email,
-    address,
-    scheduledAt,
-    durationHours,
-    notes,
-    totalAmount: worker.price * durationHours
-  });
-  res.status(201).json({ message: "Booking request received.", booking });
-}
 
 async function listMine(req, res) {
   let filter = {};
@@ -83,6 +39,24 @@ async function changeStatus(req, res) {
   if (!isAdmin && !isOwner && !isAssignedWorker) {
     throw httpError(403, "You cannot update this booking.");
   }
+  if (
+    status === "cancelled" &&
+    booking.providerPayoutStatus === "cleared"
+  ) {
+    throw httpError(409, "This provider payout was cleared. Contact support before cancelling this booking.");
+  }
+  if (
+    status === "cancelled" &&
+    ((booking.paymentStatus === "paid" && isOwner) ||
+      (booking.paymentStatus !== "paid" && booking.paymentOrderId))
+  ) {
+    throw httpError(
+      409,
+      booking.paymentStatus === "paid" && isOwner
+        ? "This booking has been paid. Contact support to request a refund."
+        : "A payment order has already been created. Contact support before cancelling this booking."
+    );
+  }
 
   const allowed =
     isAdmin ||
@@ -94,8 +68,11 @@ async function changeStatus(req, res) {
   if (!allowed) throw httpError(409, `A ${booking.status} booking cannot be changed to ${status}.`);
 
   booking.status = status;
+  if (status === "cancelled" && booking.paymentStatus === "paid") {
+    booking.paymentStatus = "refund_required";
+  }
   await booking.save();
   res.json({ message: "Booking updated.", booking });
 }
 
-module.exports = { create, listMine, changeStatus };
+module.exports = { listMine, changeStatus };

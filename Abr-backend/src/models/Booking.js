@@ -21,9 +21,30 @@ const bookingSchema = new mongoose.Schema(
       default: "pending",
       index: true
     },
-    totalAmount: { type: Number, min: 0 }
+    totalAmount: { type: Number, min: 0 },
+    paymentStatus: {
+      type: String,
+      enum: ["unpaid", "paid", "refund_required"],
+      default: "unpaid",
+      index: true
+    },
+    paymentOrderId: { type: String, trim: true, index: true },
+    paymentOrderExpiresAt: { type: Date },
+    paymentId: { type: String, trim: true },
+    paidAt: { type: Date },
+    providerPayoutStatus: {
+      type: String,
+      enum: ["pending", "cleared"],
+      default: "pending",
+      index: true
+    },
+    providerPayoutClearedAt: { type: Date },
+    providerPayoutClearedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    providerPayoutReference: { type: String, trim: true, maxlength: 100 }
   },
   { timestamps: true }
 );
+
+bookingSchema.index({ worker: 1, paymentStatus: 1, providerPayoutStatus: 1 });
 
 module.exports = mongoose.model("Booking", bookingSchema);

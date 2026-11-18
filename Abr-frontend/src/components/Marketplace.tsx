@@ -6,8 +6,8 @@ import { ArrowDown, ArrowRight, ArrowUpRight, BadgeCheck, CalendarDays, Check, C
 import { useCallback, useEffect, useState } from "react";
 import SiteHeader from "@/components/SiteHeader";
 import DetectCityButton from "@/components/DetectCityButton";
-import { api, formatPrice } from "@/lib/api";
-import type { ServiceCategory, Worker } from "@/lib/types";
+import { ApiError, api, formatPrice } from "@/lib/api";
+import type { Role, ServiceCategory, Worker } from "@/lib/types";
 
 const categoryStyles: Record<string, { icon: typeof Wrench; tint: string }> = {
   plumber: { icon: Wrench, tint: "mint" },
@@ -49,6 +49,8 @@ export default function Marketplace() {
   const [error, setError] = useState("");
   const [categoryError, setCategoryError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [bookingAuthError, setBookingAuthError] = useState("");
+  const [bookingLoginUrl, setBookingLoginUrl] = useState("");
 
   useEffect(() => {
     api<{ categories: ServiceCategory[] }>("workers/categories")
@@ -79,9 +81,25 @@ export default function Marketplace() {
     return () => window.clearTimeout(timeout);
   }, [loadWorkers, search]);
 
-  function bookWorker(worker: Worker) {
-    const query = new URLSearchParams({ book: worker._id });
-    router.push(`/login?next=${encodeURIComponent(`/customer?${query}`)}`);
+  async function bookWorker(worker: Worker) {
+    setBookingAuthError("");
+    const bookingPath = `/customer?${new URLSearchParams({ book: worker._id })}`;
+    setBookingLoginUrl("");
+    try {
+      const { user } = await api<{ user: { role: Role } }>("auth/me");
+      if (user.role !== "customer") {
+        setBookingAuthError(`You’re signed in as a ${user.role === "worker" ? "service provider" : "administrator"}. Sign in with a customer account to book a service.`);
+        setBookingLoginUrl(`/login?next=${encodeURIComponent(bookingPath)}`);
+        return;
+      }
+      router.push(bookingPath);
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 401) {
+        router.push(`/login?next=${encodeURIComponent(bookingPath)}`);
+        return;
+      }
+      setBookingAuthError(reason instanceof Error ? reason.message : "Could not check your sign-in. Please try again.");
+    }
   }
 
   function chooseCategory(nextCategory: string) {
@@ -150,6 +168,7 @@ export default function Marketplace() {
             <div><p className="eyebrow">GOOD HANDS, CLOSE BY</p><h2>Meet your <span>local pros.</span></h2></div>
             <Link href="/login?mode=register&role=worker" className="text-link">Work with us <ArrowUpRight size={16} /></Link>
           </div>
+          {bookingAuthError && <p className="inline-error" role="alert">{bookingAuthError} {bookingLoginUrl && <Link href={bookingLoginUrl}>Sign in as a customer</Link>}</p>}
           {(category || city || search) && <div className="filter-line"><span>Showing: {category || "All services"}{city ? ` · ${city}` : ""}{search ? ` · “${search}”` : ""}</span><button onClick={() => { setCategory(""); setCity(""); setSearch(""); }}>Clear filters <XIcon /></button></div>}
           {error ? <div className="empty-message error-message"><strong>Couldn’t load the pros.</strong><span>{error}</span><button className="outline-button" onClick={() => void loadWorkers()}>Try again</button></div> : loading ? <div className="empty-message"><span className="loading-dot" /> Finding good people near you…</div> : workers.length ? <div className="pro-grid">{workers.slice(0, 8).map((worker, index) => <WorkerCard key={worker._id} worker={worker} index={index} onBook={bookWorker} />)}</div> : <div className="empty-message"><strong>No professionals found just yet.</strong><span>Try a different service or city.</span><button className="outline-button" onClick={() => { setCategory(""); setCity(""); setSearch(""); }}>Show everyone</button></div>}
           <div className="trust-ribbon"><span className="trust-ribbon-icon"><ShieldCheck size={22} /></span><div><strong>Good work deserves trust.</strong><span>We verify the professionals who show up at your door.</span></div><span className="trust-ribbon-note"><BadgeCheck size={15} /> VERIFIED LOCAL PROS</span></div>

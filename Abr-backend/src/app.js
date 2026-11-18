@@ -6,6 +6,8 @@ const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
 const cookieParser = require("cookie-parser");
 const sameOrigin = require("./middleware/sameOrigin");
+const asyncHandler = require("./utils/asyncHandler");
+const paymentsController = require("./controllers/paymentsController");
 
 const app = express();
 
@@ -19,9 +21,14 @@ app.use(
     }
   })
 );
-app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
 app.use(sameOrigin);
+app.post(
+  "/api/payments/webhook",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  asyncHandler(paymentsController.webhook)
+);
+app.use(express.json({ limit: "10kb" }));
 app.use(express.static(require("path").join(__dirname, "..", "public")));
 
 app.use("/api/auth", authRoutes);

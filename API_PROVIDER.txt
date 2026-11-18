@@ -1,0 +1,293 @@
+KAAMGHAR PROVIDER API
+=====================
+
+BASE URL
+--------
+Direct Express API:       http://localhost:4000
+Provider web app proxy:   http://localhost:3002
+
+Use /api/... on port 3002 in the provider portal, or
+http://localhost:4000/api/... in Postman.
+
+AUTHENTICATION
+--------------
+Provider accounts use the HttpOnly kg_session cookie. Provider accounts can be
+created by an admin or registered with role "worker". The provider app expects
+the signed-in user's role to be "worker".
+
+All JSON requests:
+Content-Type: application/json
+
+1. REGISTER A PROVIDER (OPTIONAL)
+---------------------------------
+POST /api/auth/register
+Auth: Not required
+
+Payload:
+{
+  "name": "Ramesh Kumar",
+  "email": "ramesh@example.com",
+  "phone": "+91 98765 43210",
+  "password": "replace-with-a-strong-password",
+  "role": "worker",
+  "profession": "Plumber",
+  "category": "Plumber",
+  "city": "Chandigarh",
+  "experience": 8,
+  "price": 1000,
+  "description": "Home plumbing repairs and installation."
+}
+
+Success: 201 Created
+Set-Cookie: kg_session=...; HttpOnly; SameSite=Strict
+{
+  "message": "Professional account created. Your profile is awaiting admin approval.",
+  "user": {
+    "id": "6123456789abcdef01234567",
+    "name": "Ramesh Kumar",
+    "email": "ramesh@example.com",
+    "phone": "+91 98765 43210",
+    "role": "worker",
+    "worker": "1123456789abcdef01234567"
+  }
+}
+
+2. PROVIDER LOGIN / LOGOUT / CURRENT USER
+-----------------------------------------
+POST /api/auth/login
+Payload:
+{
+  "email": "ramesh@example.com",
+  "password": "replace-with-a-strong-password"
+}
+Success: 200 OK
+Set-Cookie: kg_session=...; HttpOnly; SameSite=Strict
+{
+  "message": "Welcome back.",
+  "user": {
+    "id": "6123456789abcdef01234567",
+    "name": "Ramesh Kumar",
+    "email": "ramesh@example.com",
+    "phone": "+91 98765 43210",
+    "role": "worker",
+    "worker": "1123456789abcdef01234567"
+  }
+}
+
+GET /api/auth/me
+Auth: kg_session cookie
+Success: 200 OK
+{
+  "user": {
+    "id": "6123456789abcdef01234567",
+    "name": "Ramesh Kumar",
+    "email": "ramesh@example.com",
+    "phone": "+91 98765 43210",
+    "role": "worker",
+    "worker": "1123456789abcdef01234567"
+  }
+}
+
+POST /api/auth/logout
+Auth: Not required
+Success: 200 OK
+{
+  "message": "You have been signed out."
+}
+Logout clears kg_session.
+
+3. LIST SERVICE CATEGORIES
+--------------------------
+GET /api/workers/categories
+Auth: Not required
+Success: 200 OK
+{
+  "categories": [
+    { "name": "Plumber", "label": "Plumbing" }
+  ]
+}
+
+4. GET MY PROFESSIONAL PROFILE
+------------------------------
+GET /api/workers/me
+Auth: Provider kg_session cookie
+Success: 200 OK
+{
+  "worker": {
+    "_id": "1123456789abcdef01234567",
+    "user": "6123456789abcdef01234567",
+    "name": "Ramesh Kumar",
+    "profession": "Plumber",
+    "category": "Plumber",
+    "city": "Chandigarh",
+    "experience": 8,
+    "rating": 4.8,
+    "reviewCount": 12,
+    "price": 1000,
+    "priceUnit": "hour",
+    "description": "Home plumbing repairs and installation.",
+    "available": true,
+    "approvalStatus": "approved",
+    "verificationDocuments": []
+  }
+}
+
+5. UPDATE MY PROFILE
+--------------------
+PATCH /api/workers/me
+Auth: Provider kg_session cookie
+Any subset of these fields may be sent: profession, category, city, experience,
+price, description, available. Send at least one field. Category must exist.
+
+Payload:
+{
+  "profession": "Senior Plumber",
+  "city": "Chandigarh",
+  "price": 1200,
+  "available": true
+}
+
+Success: 200 OK
+{
+  "worker": {
+    "_id": "1123456789abcdef01234567",
+    "profession": "Senior Plumber",
+    "category": "Plumber",
+    "city": "Chandigarh",
+    "experience": 8,
+    "price": 1200,
+    "available": true,
+    "approvalStatus": "approved"
+  }
+}
+
+6. UPLOAD A VERIFICATION DOCUMENT
+---------------------------------
+POST /api/workers/me/documents
+Auth: Provider kg_session cookie
+Content-Type: multipart/form-data
+
+Form fields:
+document: one PDF, JPG/JPEG, or PNG file (maximum 5 MB)
+type: identity | address | certificate | other
+
+Success: 201 Created
+{
+  "message": "Document uploaded for verification.",
+  "document": {
+    "_id": "5123456789abcdef01234567",
+    "type": "identity",
+    "originalName": "identity.pdf",
+    "mimeType": "application/pdf",
+    "size": 123456,
+    "status": "pending",
+    "uploadedAt": "2026-11-17T10:00:00.000Z"
+  }
+}
+The private storage path is never returned.
+
+7. LIST MY BOOKINGS
+-------------------
+GET /api/bookings
+Auth: Provider kg_session cookie
+Only bookings assigned to this provider are returned.
+New requests are visible only after the customer completes payment. A booking
+declined after payment is marked cancelled and flagged for a support-managed
+refund; the API does not issue refunds.
+
+Success: 200 OK
+{
+  "bookings": [
+    {
+      "_id": "2123456789abcdef01234567",
+      "customerName": "Aanya Sharma",
+      "phone": "+91 98765 43210",
+      "email": "aanya@example.com",
+      "address": "12 Example Road, Sector 10, Chandigarh",
+      "scheduledAt": "2026-11-20T10:00:00.000Z",
+      "durationHours": 2,
+      "notes": "Please call before arriving.",
+      "status": "pending",
+      "totalAmount": 2000,
+      "paymentStatus": "paid",
+      "providerPayoutStatus": "pending",
+      "customer": {
+        "name": "Aanya Sharma",
+        "email": "aanya@example.com",
+        "phone": "+91 98765 43210"
+      },
+      "worker": {
+        "name": "Ramesh Kumar",
+        "profession": "Plumber",
+        "category": "Plumber",
+        "city": "Chandigarh",
+        "price": 1000
+      }
+    }
+  ]
+}
+
+PROVIDER EARNINGS
+-----------------
+GET /api/workers/me/earnings
+Auth: Provider kg_session cookie
+Returns all paid bookings assigned to this provider. Bookings marked
+refund_required are excluded.
+
+Success: 200 OK
+{
+  "earnings": {
+    "total": 12000,
+    "pending": 7000,
+    "cleared": 5000
+  }
+}
+pending is awaiting admin payout clearance; cleared is marked paid by an admin.
+This endpoint reports payout records and does not transfer money.
+The provider dashboard places total earning and total pending at the top and
+shows each paid booking's payout as Paid or Pending.
+
+8. UPDATE A BOOKING STATUS
+--------------------------
+PATCH /api/bookings/:id/status
+Auth: Assigned provider kg_session cookie
+
+Payload examples:
+{ "status": "confirmed" }
+{ "status": "completed" }
+{ "status": "cancelled" }
+
+Allowed transitions:
+pending -> confirmed or cancelled
+confirmed -> completed or cancelled
+A booking with an active legacy payment checkout cannot be cancelled. Providers
+may decline a paid request; this flags the booking for a support-managed refund.
+A booking whose provider payout is already cleared cannot be cancelled from
+this endpoint; contact support to resolve it.
+
+Success: 200 OK
+{
+  "message": "Booking updated.",
+  "booking": {
+    "_id": "2123456789abcdef01234567",
+    "status": "confirmed",
+    "customerName": "Aanya Sharma",
+    "worker": "1123456789abcdef01234567",
+    "scheduledAt": "2026-11-20T10:00:00.000Z",
+    "durationHours": 2,
+    "totalAmount": 2000
+  }
+}
+
+COMMON ERRORS
+-------------
+400 Bad Request: invalid profile fields, document, or status.
+401 Unauthorized: missing/invalid kg_session cookie.
+403 Forbidden: account is not a provider or booking is assigned to another pro.
+404 Not Found: provider profile or booking does not exist.
+409 Conflict: invalid booking status transition.
+413 Payload Too Large: document exceeds 5 MB.
+Responses use JSON such as:
+{
+  "message": "Backend API is unavailable. Start the Node.js backend and try again."
+}

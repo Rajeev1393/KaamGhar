@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const Booking = require("../models/Booking");
 const Worker = require("../models/Worker");
 const { requiredString } = require("../middleware/validate");
 const httpError = require("../utils/httpError");
@@ -38,6 +39,44 @@ async function getOwnProfile(req, res) {
   const worker = await Worker.findOne({ _id: req.user.worker, user: req.user._id }).lean();
   if (!worker) throw httpError(404, "Professional profile was not found.");
   res.json({ worker });
+}
+
+async function getOwnEarnings(req, res) {
+  if (!req.user.worker) throw httpError(404, "Professional profile was not found.");
+  const [summary] = await Booking.aggregate([
+    { $match: { worker: new mongoose.Types.ObjectId(req.user.worker), paymentStatus: "paid" } },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: { $ifNull: ["$totalAmount", 0] } },
+        pending: {
+          $sum: {
+            $cond: [
+              { $eq: ["$providerPayoutStatus", "cleared"] },
+              0,
+              { $ifNull: ["$totalAmount", 0] }
+            ]
+          }
+        },
+        cleared: {
+          $sum: {
+            $cond: [
+              { $eq: ["$providerPayoutStatus", "cleared"] },
+              { $ifNull: ["$totalAmount", 0] },
+              0
+            ]
+          }
+        }
+      }
+    }
+  ]);
+  res.json({
+    earnings: {
+      total: summary?.total || 0,
+      pending: summary?.pending || 0,
+      cleared: summary?.cleared || 0
+    }
+  });
 }
 
 async function updateOwnProfile(req, res) {
@@ -84,4 +123,4 @@ async function updateOwnProfile(req, res) {
   res.json({ worker });
 }
 
-module.exports = { listPublic, listCategories, getOwnProfile, updateOwnProfile };
+module.exports = { listPublic, listCategories, getOwnProfile, getOwnEarnings, updateOwnProfile };

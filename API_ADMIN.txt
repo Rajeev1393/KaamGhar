@@ -1,0 +1,394 @@
+KAAMGHAR ADMIN API
+==================
+
+BASE URL
+--------
+Direct Express API:       http://localhost:4000
+Admin web app proxy:      http://localhost:3001
+
+Use /api/... on port 3001 in the browser, or
+http://localhost:4000/api/... in Postman.
+
+AUTHENTICATION
+--------------
+Admin login sets a separate HttpOnly kg_admin_session cookie. Send it on
+/api/admin/... requests. Do not send an admin password as a bearer token.
+Postman should save and resend the cookie automatically.
+
+All JSON requests:
+Content-Type: application/json
+
+1. ADMIN LOGIN
+--------------
+POST /api/admin/auth/login
+Auth: Not required
+
+Payload:
+{
+  "email": "admin@example.com",
+  "password": "replace-with-admin-password"
+}
+
+Success: 200 OK
+Set-Cookie: kg_admin_session=...; HttpOnly; SameSite=Strict
+{
+  "message": "Welcome back.",
+  "user": {
+    "id": "3123456789abcdef01234567",
+    "name": "KaamGhar Admin",
+    "email": "admin@example.com",
+    "phone": "+91 90000 00000",
+    "role": "admin"
+  }
+}
+
+2. CURRENT ADMIN / LOGOUT
+-------------------------
+GET /api/admin/auth/me
+Auth: kg_admin_session cookie
+Success: 200 OK
+{
+  "user": {
+    "id": "3123456789abcdef01234567",
+    "name": "KaamGhar Admin",
+    "email": "admin@example.com",
+    "phone": "+91 90000 00000",
+    "role": "admin"
+  }
+}
+
+POST /api/admin/auth/logout
+Auth: Not required
+Success: 200 OK
+{
+  "message": "You have been signed out."
+}
+The response clears kg_admin_session only.
+
+3. DASHBOARD OVERVIEW
+---------------------
+GET /api/admin/overview
+Auth: Admin cookie
+
+Success: 200 OK
+{
+  "stats": {
+    "customers": 1,
+    "professionals": 13,
+    "pendingApprovals": 2,
+    "pendingDocuments": 1,
+    "bookings": 8,
+    "completedRevenue": 1798,
+    "paymentsReceived": 2500,
+    "paymentsReceivedCount": 2
+  },
+  "recentBookings": [
+    {
+      "_id": "4123456789abcdef01234567",
+      "customerName": "Aanya Sharma",
+      "status": "pending",
+      "address": "12 Example Road, Chandigarh",
+      "scheduledAt": "2026-11-20T10:00:00.000Z",
+      "totalAmount": 1000,
+      "paymentStatus": "paid",
+      "providerPayoutStatus": "pending",
+      "paymentOrderId": "order_example123",
+      "customer": { "name": "Aanya Sharma" },
+      "worker": { "name": "Ramesh Kumar", "profession": "Plumber" }
+    }
+  ]
+}
+recentBookings contains at most 8 records and includes paymentStatus and
+paymentOrderId where available. paymentsReceived sums captured payments,
+including bookings flagged for a support-managed refund; paymentsReceivedCount
+is the number of such bookings.
+
+ADMIN BOOKING LIST
+------------------
+GET /api/admin/bookings
+Auth: Admin cookie
+Success: 200 OK
+{
+  "bookings": [
+    {
+      "_id": "4123456789abcdef01234567",
+      "totalAmount": 1000,
+      "paymentStatus": "paid",
+      "providerPayoutStatus": "pending",
+      "paymentOrderId": "order_example123",
+      "paymentId": "pay_example123",
+      "customer": { "name": "Aanya Sharma", "email": "aanya@example.com" },
+      "worker": { "name": "Ramesh Kumar", "profession": "Plumber" }
+    }
+  ]
+}
+Returns up to 500 most recent bookings. Payment details are present where
+available; paymentOrderId is the Razorpay Order ID.
+
+4. SERVICE CATEGORIES
+---------------------
+GET /api/admin/categories
+Auth: Admin cookie
+Response: 200 OK
+{
+  "categories": [
+    { "name": "Plumber", "label": "Plumbing" }
+  ]
+}
+
+POST /api/admin/categories
+Auth: Admin cookie
+Payload:
+{
+  "name": "Plumber",
+  "label": "Plumbing"
+}
+label is optional; when omitted, it defaults to name.
+
+Success: 201 Created
+{
+  "category": { "name": "Plumber", "label": "Plumbing" }
+}
+
+5. LIST PROFESSIONAL APPLICATIONS
+---------------------------------
+GET /api/admin/professionals?status=pending
+Auth: Admin cookie
+status: pending (default), approved, or rejected
+
+Success: 200 OK
+{
+  "workers": [
+    {
+      "_id": "1123456789abcdef01234567",
+      "name": "Ramesh Kumar",
+      "profession": "Plumber",
+      "category": "Plumber",
+      "city": "Chandigarh",
+      "price": 1000,
+      "approvalStatus": "pending",
+      "available": false,
+      "verificationDocuments": [],
+      "earnings": {
+        "total": 12000,
+        "pending": 7000,
+        "cleared": 5000
+      },
+      "user": {
+        "name": "Ramesh Kumar",
+        "email": "ramesh@example.com",
+        "phone": "+91 98765 43210"
+      }
+    }
+  ]
+}
+Each professional includes totals for paid bookings: total, pending, and cleared.
+Bookings marked refund_required are excluded.
+
+PROVIDER PAYOUT CLEARANCE
+-------------------------
+POST /api/admin/professionals/:id/payouts/clear
+Auth: Admin cookie
+Payload (reference is optional):
+{
+  "reference": "BANK-UTR-EXAMPLE"
+}
+
+Success: 200 OK
+{
+  "message": "Payout marked as cleared.",
+  "payout": {
+    "amount": 7000,
+    "bookingCount": 3,
+    "clearedAt": "2026-11-18T10:00:00.000Z",
+    "reference": "BANK-UTR-EXAMPLE"
+  }
+}
+This records a manual payout for all currently pending paid bookings for the
+professional. It does not initiate a bank or Razorpay transfer.
+
+6. CREATE A PROVIDER ACCOUNT
+----------------------------
+POST /api/admin/professionals
+Auth: Admin cookie
+
+Payload:
+{
+  "name": "Ramesh Kumar",
+  "email": "ramesh@example.com",
+  "phone": "+91 98765 43210",
+  "password": "replace-with-a-strong-password",
+  "profession": "Plumber",
+  "category": "Plumber",
+  "city": "Chandigarh",
+  "price": 1000
+}
+
+category must exist. The new profile starts pending, unavailable, and with
+experience 0.
+
+Success: 201 Created
+{
+  "message": "Professional account created and awaiting review.",
+  "worker": {
+    "_id": "1123456789abcdef01234567",
+    "name": "Ramesh Kumar",
+    "profession": "Plumber",
+    "category": "Plumber",
+    "city": "Chandigarh",
+    "experience": 0,
+    "price": 1000,
+    "approvalStatus": "pending",
+    "available": false
+  }
+}
+
+7. APPROVE OR REJECT A PROFESSIONAL
+-----------------------------------
+PATCH /api/admin/professionals/:id/status
+Auth: Admin cookie
+
+Payload to approve:
+{
+  "status": "approved"
+}
+
+Payload to reject:
+{
+  "status": "rejected"
+}
+
+Success: 200 OK
+{
+  "message": "Professional approved.",
+  "worker": {
+    "_id": "1123456789abcdef01234567",
+    "approvalStatus": "approved",
+    "available": true
+  }
+}
+Documents are optional. If documents have been uploaded, every one must be
+verified before approval. An approved and available profile can appear in the
+public professional search.
+
+8. REVIEW A VERIFICATION DOCUMENT
+---------------------------------
+PATCH /api/admin/professionals/:id/documents/:documentId
+Auth: Admin cookie
+Payload:
+{
+  "status": "verified"
+}
+or
+{
+  "status": "rejected"
+}
+
+Success: 200 OK
+{
+  "message": "Document verified.",
+  "document": {
+    "_id": "5123456789abcdef01234567",
+    "type": "identity",
+    "originalName": "identity.pdf",
+    "mimeType": "application/pdf",
+    "size": 123456,
+    "status": "verified",
+    "uploadedAt": "2026-11-17T10:00:00.000Z",
+    "reviewedAt": "2026-11-17T11:00:00.000Z"
+  }
+}
+
+9. VIEW OR DELETE A PROFESSIONAL
+--------------------------------
+GET /api/admin/professionals/:id/documents/:documentId/file
+Auth: Admin cookie
+Success: 200 with the PDF/JPG/PNG file body (not JSON).
+
+DELETE /api/admin/professionals/:id
+Auth: Admin cookie
+Success: 200 OK
+{
+  "message": "Employee deleted; booking history preserved.",
+  "workerId": "1123456789abcdef01234567"
+}
+
+10. LIST AND ACTIVATE USER ACCOUNTS
+-----------------------------------
+GET /api/admin/users?role=customer
+GET /api/admin/users?role=worker
+GET /api/admin/users
+Auth: Admin cookie
+role is optional: customer or worker. Without role, customers and approved
+providers are returned.
+Provider accounts include their total, pending, and cleared payment amounts
+inside worker.earnings. The Users tab offers a Payout button next to providers
+with a pending amount; after a successful clear, pending decreases and
+Payment received increases.
+
+Success: 200 OK
+{
+  "users": [
+    {
+      "_id": "0123456789abcdef01234567",
+      "name": "Aanya Sharma",
+      "email": "aanya@example.com",
+      "phone": "+91 98765 43210",
+      "role": "customer",
+      "active": true,
+      "createdAt": "2026-11-17T09:00:00.000Z"
+    }
+  ]
+}
+
+PATCH /api/admin/users/:id/status
+Auth: Admin cookie
+Payload:
+{
+  "active": false
+}
+Set active to true to reactivate an account.
+
+Success: 200 OK
+{
+  "message": "Account deactivated.",
+  "user": {
+    "_id": "0123456789abcdef01234567",
+    "name": "Aanya Sharma",
+    "email": "aanya@example.com",
+    "phone": "+91 98765 43210",
+    "role": "customer",
+    "active": false
+  }
+}
+
+11. BOOKINGS
+------------
+GET /api/bookings
+PATCH /api/bookings/:id/status
+These shared endpoints use the kg_session cookie. The admin dashboard instead
+uses GET /api/admin/bookings with kg_admin_session to list up to 500 bookings
+and their payment details.
+New bookings appear in the overview and provider/customer lists only after
+Razorpay payment is verified; paid cancellations are flagged for a
+support-managed refund.
+
+PATCH payload:
+{
+  "status": "confirmed"
+}
+Valid status values: confirmed, completed, cancelled. Admin can set any of
+these; customer/provider transitions are ownership- and status-limited.
+Success: { "message": "Booking updated.", "booking": { ... } }
+
+COMMON ERRORS
+-------------
+400 Bad Request: invalid payload, status, id, or query.
+401 Unauthorized: missing/invalid admin cookie or invalid credentials.
+403 Forbidden: authenticated account is not an admin.
+404 Not Found: professional, document, or user does not exist.
+409 Conflict: duplicate category/email, or a document is not verified.
+Responses use JSON such as:
+{
+  "message": "Choose a valid professional status."
+}

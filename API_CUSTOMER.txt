@@ -1,0 +1,340 @@
+KAAMGHAR CUSTOMER API
+=====================
+
+BASE URL
+--------
+Direct Express API:       http://localhost:4000
+Customer web app proxy:   http://localhost:3001
+
+For browser/Postman requests through the web app, use /api/... on port 3001.
+For direct API requests, use http://localhost:4000/api/...
+
+AUTHENTICATION
+--------------
+Login and registration set an HttpOnly kg_session cookie. Send that cookie on
+protected customer requests. There is no bearer token in the JSON response.
+Postman should save and resend cookies automatically.
+
+All JSON requests:
+Content-Type: application/json
+
+1. REGISTER CUSTOMER
+--------------------
+POST /api/auth/register
+Auth: Not required
+
+Payload:
+{
+  "name": "Aanya Sharma",
+  "email": "aanya@example.com",
+  "phone": "+91 98765 43210",
+  "password": "replace-with-a-strong-password",
+  "role": "customer"
+}
+
+Success: 201 Created
+Set-Cookie: kg_session=...; HttpOnly; SameSite=Strict
+{
+  "message": "Your account is ready.",
+  "user": {
+    "id": "0123456789abcdef01234567",
+    "name": "Aanya Sharma",
+    "email": "aanya@example.com",
+    "phone": "+91 98765 43210",
+    "role": "customer"
+  }
+}
+
+Rules: name 2-80 chars, valid email, phone 8-20 chars, password 8-72 chars.
+
+2. LOGIN
+--------
+POST /api/auth/login
+Auth: Not required
+
+Payload:
+{
+  "email": "aanya@example.com",
+  "password": "replace-with-a-strong-password"
+}
+
+Success: 200 OK
+Set-Cookie: kg_session=...; HttpOnly; SameSite=Strict
+{
+  "message": "Welcome back.",
+  "user": {
+    "id": "0123456789abcdef01234567",
+    "name": "Aanya Sharma",
+    "email": "aanya@example.com",
+    "phone": "+91 98765 43210",
+    "role": "customer"
+  }
+}
+
+3. CURRENT USER
+---------------
+GET /api/auth/me
+Auth: kg_session cookie
+
+Success: 200 OK
+{
+  "user": {
+    "id": "0123456789abcdef01234567",
+    "name": "Aanya Sharma",
+    "email": "aanya@example.com",
+    "phone": "+91 98765 43210",
+    "role": "customer"
+  }
+}
+
+4. LOGOUT
+---------
+POST /api/auth/logout
+Auth: Not required
+
+Success: 200 OK
+{
+  "message": "You have been signed out."
+}
+The response clears the kg_session cookie.
+
+5. LIST SERVICE CATEGORIES
+--------------------------
+GET /api/workers/categories
+Auth: Not required
+
+Success: 200 OK
+{
+  "categories": [
+    { "name": "Plumber", "label": "Plumbing" },
+    { "name": "Cleaning", "label": "Home cleaning" }
+  ]
+}
+The category list is configured by the backend and may differ by environment.
+
+6. SEARCH APPROVED PROFESSIONALS
+--------------------------------
+GET /api/workers?category=Plumber&city=Chandigarh&search=repair
+Auth: Not required
+Optional query parameters: category, city, search
+
+Success: 200 OK
+{
+  "workers": [
+    {
+      "_id": "1123456789abcdef01234567",
+      "name": "Ramesh Kumar",
+      "profession": "Plumber",
+      "category": "Plumber",
+      "city": "Chandigarh",
+      "experience": 8,
+      "rating": 4.8,
+      "reviewCount": 12,
+      "price": 1000,
+      "priceUnit": "hour",
+      "image": "",
+      "description": "Home plumbing repairs and installation."
+    }
+  ]
+}
+Only available, approved, non-deleted professionals are returned. The maximum
+result count is 60.
+
+7. LOOK UP CITY FROM LOCATION
+-----------------------------
+GET /api/location/reverse?latitude=30.7333&longitude=76.7794
+Auth: Not required
+This route is served by the Next.js app (port 3001), not Express port 4000.
+
+Success: 200 OK
+{
+  "city": "Chandigarh"
+}
+Coordinates must be valid latitude/longitude values. If lookup fails, choose a
+city manually.
+
+8. CREATE A BOOKING CHECKOUT
+-------------------
+POST /api/bookings/payment/order
+Auth: Customer kg_session cookie
+
+Payload:
+{
+  "workerId": "1123456789abcdef01234567",
+  "address": "12 Example Road, Sector 10, Chandigarh",
+  "scheduledAt": "2026-11-20T10:00:00.000Z",
+  "durationHours": 2,
+  "notes": "Please call before arriving."
+}
+
+Required: workerId, address, scheduledAt, durationHours
+Optional: notes
+durationHours must be an integer from 1 to 12. scheduledAt must be in the
+future. The customer name, phone, email, and total amount are taken/calculated
+by the server; do not send them. This creates a private payment checkout only;
+it does not create a booking or notify the professional.
+
+Success: 201 Created (an existing matching checkout may return 200 OK)
+{
+  "keyId": "rzp_test_example",
+  "orderId": "order_example123",
+  "amount": 200000,
+  "currency": "INR"
+}
+amount is in paise. Open Razorpay Checkout with keyId, orderId, amount, and
+currency from this response. The backend derives the amount from the
+professional's current price. Razorpay orders do not expire automatically.
+If an unfinished checkout exists, retry with the same booking details; a
+different booking is blocked until that checkout is paid or support resolves it.
+
+The old direct POST /api/bookings endpoint is disabled (410 Gone) so a booking
+cannot be sent to a professional without successful payment.
+
+9. VERIFY PAYMENT AND SEND THE BOOKING
+--------------------------------------
+POST /api/bookings/payment/verify
+Auth: Customer kg_session cookie
+Payload: Forward the three values returned by Razorpay Checkout:
+{
+  "razorpay_order_id": "order_example123",
+  "razorpay_payment_id": "pay_example456",
+  "razorpay_signature": "checkout_signature_from_razorpay"
+}
+
+Success: 200 OK
+{
+  "message": "Payment verified and booking sent.",
+  "paymentStatus": "paid",
+  "booking": {
+    "_id": "2123456789abcdef01234567",
+    "customerName": "Aanya Sharma",
+    "worker": {
+      "_id": "1123456789abcdef01234567",
+      "name": "Ramesh Kumar",
+      "profession": "Plumber"
+    },
+    "address": "12 Example Road, Sector 10, Chandigarh",
+    "scheduledAt": "2026-11-20T10:00:00.000Z",
+    "durationHours": 2,
+    "totalAmount": 2000,
+    "status": "pending",
+    "paymentStatus": "paid"
+  }
+}
+
+The backend validates the signature and confirms the captured amount with
+Razorpay. Only then is the booking created and made visible to the customer,
+professional, and admin. Do not mark a booking paid based only on the browser
+callback. Repeated verification is safe and will not create duplicate bookings.
+
+10. LIST MY BOOKINGS
+--------------------
+GET /api/bookings
+Auth: Customer kg_session cookie
+
+Success: 200 OK
+{
+  "bookings": [
+    {
+      "_id": "2123456789abcdef01234567",
+      "customerName": "Aanya Sharma",
+      "address": "12 Example Road, Sector 10, Chandigarh",
+      "scheduledAt": "2026-11-20T10:00:00.000Z",
+      "durationHours": 2,
+      "status": "pending",
+      "totalAmount": 2000,
+      "paymentStatus": "paid",
+      "worker": {
+        "_id": "1123456789abcdef01234567",
+        "name": "Ramesh Kumar",
+        "profession": "Plumber"
+      }
+    }
+  ]
+}
+Bookings are sorted newest scheduled time first and capped at 200.
+
+11. CANCEL A BOOKING
+--------------------
+PATCH /api/bookings/:id/status
+Auth: Booking-owning customer kg_session cookie
+
+Payload:
+{
+  "status": "cancelled"
+}
+
+Customers may cancel only pending or confirmed bookings. Cancellation returns
+409 after payment; paid-booking refunds require support because this API does
+not issue refunds.
+Success: 200 OK
+{
+  "message": "Booking updated.",
+  "booking": {
+    "_id": "2123456789abcdef01234567",
+    "status": "cancelled",
+    "customerName": "Aanya Sharma",
+    "worker": "1123456789abcdef01234567",
+    "address": "12 Example Road, Sector 10, Chandigarh",
+    "scheduledAt": "2026-11-20T10:00:00.000Z",
+    "durationHours": 2,
+    "totalAmount": 2000
+  }
+}
+
+12. PAY FOR A LEGACY UNPAID BOOKING
+-----------------------------------
+These endpoints are retained only for unpaid bookings created before the
+upfront-payment flow. New bookings must use the checkout and verification
+endpoints above.
+
+POST /api/bookings/:id/payment/order
+Auth: Booking-owning customer kg_session cookie
+Payload: Empty JSON object or no body.
+
+Success: 201 Created (an existing order may return 200 OK)
+{
+ "keyId": "rzp_test_example",
+ "orderId": "order_example123",
+ "amount": 200000,
+ "currency": "INR"
+}
+amount is in paise. Open Razorpay Checkout with keyId, orderId, amount, and
+currency from this response. The backend derives the amount from the booking.
+An existing unpaid order is reused; Razorpay orders do not expire automatically.
+
+POST /api/bookings/:id/payment/verify
+Auth: Booking-owning customer kg_session cookie
+Payload: Forward the three values returned by Razorpay Checkout:
+{
+ "razorpay_order_id": "order_example123",
+ "razorpay_payment_id": "pay_example456",
+ "razorpay_signature": "checkout_signature_from_razorpay"
+}
+
+Success: 200 OK
+{
+ "message": "Payment verified.",
+ "paymentStatus": "paid"
+}
+The backend verifies the signature and confirms the captured amount with
+Razorpay. Do not mark a booking paid based only on the browser callback.
+
+Cancel is blocked while a legacy payment order is active or after payment is
+complete. Contact support for refunds; refunds are not automatically issued.
+Razorpay webhook endpoint for server notifications: POST /api/payments/webhook.
+It requires the configured webhook secret and the raw request body.
+
+COMMON ERRORS
+-------------
+400 Bad Request: invalid/missing fields.
+401 Unauthorized: missing or invalid session; incorrect credentials.
+404 Not Found: professional or booking is unavailable.
+409 Conflict: email already exists or booking status transition is invalid.
+429 Too Many Requests: booking rate limit exceeded.
+502 Bad Gateway: Razorpay unavailable or payment could not be verified.
+503 Service Unavailable: Razorpay credentials are not configured.
+Responses use JSON such as:
+{
+  "message": "Choose a booking duration between 1 and 12 hours."
+}

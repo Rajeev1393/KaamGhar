@@ -39,8 +39,15 @@ export interface Worker {
   description?: string;
   available: boolean;
   approvalStatus: "pending" | "approved" | "rejected";
+  earnings?: { total: number; pending: number; cleared: number };
   verificationDocuments?: VerificationDocument[];
   user?: { name: string; email: string; phone: string; active?: boolean };
+}
+
+export interface ProviderEarnings {
+  total: number;
+  pending: number;
+  cleared: number;
 }
 
 export interface Booking {
@@ -54,6 +61,10 @@ export interface Booking {
   durationHours: number;
   status: "pending" | "confirmed" | "completed" | "cancelled";
   totalAmount?: number;
+  paymentStatus?: "unpaid" | "paid" | "refund_required";
+  providerPayoutStatus?: "pending" | "cleared";
+  paymentOrderId?: string;
+  paymentOrderExpiresAt?: string;
   customer?: { name: string; phone: string; email: string };
   worker?: { _id?: string; name: string; profession: string; category?: string; city?: string; price?: number };
 }

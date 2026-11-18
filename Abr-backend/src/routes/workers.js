@@ -9,6 +9,7 @@ const router = express.Router();
 
 router.get("/categories", asyncHandler(workersController.listCategories));
 router.get("/me", authenticate, authorize("worker"), asyncHandler(workersController.getOwnProfile));
+router.get("/me/earnings", authenticate, authorize("worker"), asyncHandler(workersController.getOwnEarnings));
 router.post(
   "/me/documents",
   authenticate,
