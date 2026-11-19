@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, api, formatDate, formatPrice } from "@/lib/api";
 import type { Booking, BookingStatus, User, Worker } from "@/lib/types";
+import { ProviderSignup, ProviderDocuments } from "./ProviderOnboarding";
 
 type BookingFilter = "all" | "pending" | "confirmed" | "completed";
 
@@ -12,6 +14,8 @@ export default function ProviderPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [showSignup, setShowSignup] = useState(false);
+  const [failedSignupUploads, setFailedSignupUploads] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [worker, setWorker] = useState<Worker | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -92,6 +96,7 @@ export default function ProviderPage() {
       setUser(null);
       setWorker(null);
       setBookings([]);
+      setFailedSignupUploads({});
     } catch (reason) {
       setDataError(reason instanceof Error ? reason.message : "Could not sign out.");
     }
@@ -118,6 +123,13 @@ export default function ProviderPage() {
   }
 
   if (!user) {
+    if (showSignup) {
+      return <ProviderSignup onRegistered={(account, failedUploads) => {
+        setShowSignup(false);
+        setFailedSignupUploads(failedUploads);
+        setUser(account);
+      }} onBack={() => setShowSignup(false)} />;
+    }
     return (
       <main className="login-page">
         <section className="login-card">
@@ -128,9 +140,11 @@ export default function ProviderPage() {
           <form onSubmit={signIn}>
             <label>Email address<input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
             <label>Password<input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+            <Link href="/api/auth/password-reset?portal=provider" prefetch={false}>Forgot password?</Link>
             {loginError && <p className="error-message" role="alert">{loginError}</p>}
             <button className="primary-button" disabled={submitting}>{submitting ? "Signing in…" : "Sign in to provider portal"} <span aria-hidden="true">→</span></button>
           </form>
+          <button className="back-link auth-switch" type="button" onClick={() => setShowSignup(true)}>Create a provider account</button>
           <a className="back-link" href="http://localhost:3001/">← Back to KaamGhar</a>
         </section>
       </main>
@@ -164,6 +178,17 @@ export default function ProviderPage() {
         </div>
       )}
       {dataError && <p className="error-message workspace-error" role="alert">{dataError}</p>}
+      {worker && worker.approvalStatus !== "approved" && Object.keys(failedSignupUploads).length > 0 && <p className="error-message workspace-error" role="alert">
+        Account created. Upload these documents again below: {Object.values(failedSignupUploads).join(", ")}
+      </p>}
+
+      {worker && worker.approvalStatus !== "approved" && <ProviderDocuments
+        documents={worker.verificationDocuments ?? []} onUploaded={(document) => {
+        setFailedSignupUploads((current) => Object.fromEntries(Object.entries(current).filter(([type]) => type !== document.type)));
+        setWorker((profile) => profile
+          ? { ...profile, verificationDocuments: [...(profile.verificationDocuments ?? []), document] }
+          : profile);
+      }} />}
 
       <section className="metrics" aria-label="Booking summary">
         <article><span>Total bookings</span><strong>{counts.total}</strong><small>Assigned to you</small></article>

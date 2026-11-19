@@ -17,6 +17,14 @@ export interface Worker {
   price: number;
   available: boolean;
   approvalStatus: "pending" | "approved" | "rejected";
+  verificationDocuments?: ProviderDocument[];
+}
+
+export interface ProviderDocument {
+  _id: string;
+  type: string;
+  originalName: string;
+  status: "pending" | "verified" | "rejected";
 }
 
 export interface Booking {

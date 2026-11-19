@@ -23,6 +23,12 @@ async function proxy(request: NextRequest) {
     const responseHeaders = new Headers();
     const upstreamContentType = upstream.headers.get("content-type");
     if (upstreamContentType) responseHeaders.set("content-type", upstreamContentType);
+    if (path === "auth/password-reset" || path === "auth/password-reset.js") {
+      for (const name of ["cache-control", "content-security-policy", "referrer-policy", "x-content-type-options"]) {
+        const value = upstream.headers.get(name);
+        if (value) responseHeaders.set(name, value);
+      }
+    }
     for (const value of upstream.headers.getSetCookie()) {
       responseHeaders.append("set-cookie", value);
     }

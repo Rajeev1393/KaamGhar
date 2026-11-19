@@ -35,6 +35,22 @@ a { color: inherit; text-decoration: none; }
 .primary-button:disabled, .secondary-button:disabled, .refresh-button:disabled { opacity: .6; cursor: wait; }
 .error-message { margin: 0; color: #a4473d; font-size: 12px; line-height: 1.5; }
 .back-link { margin-top: 24px; display: inline-block; color: var(--muted); font-size: 12px; }
+.auth-switch { padding: 0; border: 0; background: transparent; color: var(--green-dark); font-weight: 700; }
+.auth-switch + .back-link { display: block; }
+.provider-signup { width: min(100%, 680px); }
+.provider-signup h1 { margin-bottom: 24px; }
+.signup-documents { min-width: 0; margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 6px; }
+.signup-documents legend { padding: 0 5px; font-size: 14px; font-weight: 700; }
+.signup-documents p { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+.signup-documents label + label { margin-top: 10px; }
+.provider-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); align-items: end; gap: 14px; }
+.provider-signup :is(select, textarea), .provider-documents :is(select, input) { width: 100%; padding: 10px; border: 1px solid #dbe2da; border-radius: 6px; background: #fff; color: var(--ink); font: inherit; }
+.provider-documents h2 { margin: 0; font-size: 20px; }
+.provider-documents p { margin: 8px 0 14px; font-size: 13px; }
+.provider-documents label { display: grid; gap: 8px; font-size: 12px; font-weight: 700; }
+.provider-document-list { display: grid; gap: 8px; padding: 0; list-style: none; }
+.provider-document-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; font-size: 13px; }
+.provider-document-list strong { text-transform: capitalize; }
 
 .workspace { width: min(1120px, calc(100% - 48px)); margin: 0 auto; padding-bottom: 30px; }
 .topbar { min-height: 76px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
