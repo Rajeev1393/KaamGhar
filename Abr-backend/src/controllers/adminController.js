@@ -31,18 +31,60 @@ async function createCategory(req, res) {
     : name;
   if (label.length > 80) throw httpError(400, "Category label must be 80 characters or fewer.");
   const normalizedName = name.toLowerCase();
-  if (await ServiceCategory.exists({ normalizedName })) {
+  const existingCategory = await ServiceCategory.findOne({ normalizedName });
+  if (existingCategory?.active) {
     throw httpError(409, "A category with this name already exists.");
   }
   let category;
   try {
-    category = await ServiceCategory.create({ name, label, normalizedName });
+    if (existingCategory) {
+      existingCategory.name = name;
+      existingCategory.label = label;
+      existingCategory.price = 500;
+      existingCategory.active = true;
+      category = await existingCategory.save();
+    } else {
+      category = await ServiceCategory.create({ name, label, normalizedName, price: 500 });
+    }
   } catch (error) {
     if (error.code === 11000) throw httpError(409, "A category with this name already exists.");
     throw error;
   }
   setServiceCategories([...getServiceCategories(), category]);
-  res.status(201).json({ category: { name: category.name, label: category.label } });
+  res.status(201).json({ category: { name: category.name, label: category.label, price: category.price } });
+}
+
+async function updateCategoryPrice(req, res) {
+  const name = requiredString(req.params.name, "Category name", 2, 60);
+  if (!req.body || typeof req.body.price !== "number" || !Number.isFinite(req.body.price) ||
+      req.body.price < 1 || req.body.price > 1000000) {
+    throw httpError(400, "Category price must be between ₹1 and ₹1,000,000.");
+  }
+  const normalizedName = name.toLowerCase();
+  const category = await ServiceCategory.findOne({ normalizedName, active: true });
+  if (!category) throw httpError(404, "Service category was not found.");
+  category.price = req.body.price;
+  await category.save();
+  setServiceCategories(getServiceCategories().map((current) =>
+    current.name.toLowerCase() === normalizedName ? category : current
+  ));
+  res.json({ category: { name: category.name, label: category.label, price: category.price } });
+}
+
+async function deleteCategory(req, res) {
+  const name = requiredString(req.params.name, "Category name", 2, 60);
+  const normalizedName = name.toLowerCase();
+  const category = await ServiceCategory.findOne({ normalizedName, active: true });
+  if (!category) throw httpError(404, "Service category was not found.");
+  if (await Worker.exists({ category: category.name, deletedAt: { $exists: false } })) {
+    throw httpError(409, "This category is assigned to professionals. Reassign them before deleting it.");
+  }
+  category.active = false;
+  await category.save();
+  setServiceCategories(getServiceCategories().filter(
+    (current) => current.name.toLowerCase() !== normalizedName
+  ));
+  res.json({ message: "Category deleted.", category: { name: category.name } });
 }
 
 async function createProfessional(req, res) {
@@ -453,6 +495,7 @@ async function updateUserStatus(req, res) {
 
 module.exports = {
   createCategory,
+  deleteCategory,
   createProfessional,
   listCategories,
   listBookings,
@@ -462,6 +505,7 @@ module.exports = {
   sendDocument,
   updateDocumentStatus,
   updateProfessionalStatus,
+  updateCategoryPrice,
   deleteProfessional,
   updateUserStatus,
   listProfessionals

@@ -23,14 +23,16 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
 async function start() {
   await mongoose.connect(mongoUri);
   console.log("Connected to MongoDB.");
-  await Promise.all(defaultServiceCategories.map(({ name, label }) =>
+  await Promise.all(defaultServiceCategories.map(({ name, label, price }) =>
     ServiceCategory.updateOne(
       { normalizedName: name.toLowerCase() },
-      { $setOnInsert: { name, label } },
+      { $setOnInsert: { name, label, price, active: true } },
       { upsert: true }
     )
   ));
-  const categories = await ServiceCategory.find().select("name label").sort({ name: 1 }).lean();
+  await ServiceCategory.updateMany({ price: { $exists: false } }, { $set: { price: 500 } });
+  await ServiceCategory.updateMany({ active: { $exists: false } }, { $set: { active: true } });
+  const categories = await ServiceCategory.find({ active: true }).select("name label price").sort({ name: 1 }).lean();
   setServiceCategories(categories);
   app.listen(port, () => {
     console.log(`KaamGhar is running at http://localhost:${port}`);

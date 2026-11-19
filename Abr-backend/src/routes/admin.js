@@ -15,6 +15,8 @@ router.get("/overview", asyncHandler(adminController.overview));
 router.get("/bookings", asyncHandler(adminController.listBookings));
 router.get("/categories", asyncHandler(adminController.listCategories));
 router.post("/categories", asyncHandler(adminController.createCategory));
+router.patch("/categories/:name", asyncHandler(adminController.updateCategoryPrice));
+router.delete("/categories/:name", asyncHandler(adminController.deleteCategory));
 router.get("/professionals", asyncHandler(adminController.listProfessionals));
 router.post("/professionals/:id/payouts/clear", asyncHandler(adminController.clearProfessionalPayouts));
 router.post("/professionals", asyncHandler(adminController.createProfessional));

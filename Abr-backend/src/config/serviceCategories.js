@@ -1,10 +1,10 @@
 const serviceCategories = [
-  { name: "Plumber", label: "Plumbing" },
-  { name: "Electrician", label: "Electrical" },
-  { name: "Cleaning", label: "Home cleaning" },
-  { name: "AC Repair", label: "AC repair" },
-  { name: "Carpenter", label: "Carpentry" },
-  { name: "Salon", label: "At-home salon" }
+  { name: "Plumber", label: "Plumbing", price: 500 },
+  { name: "Electrician", label: "Electrical", price: 500 },
+  { name: "Cleaning", label: "Home cleaning", price: 500 },
+  { name: "AC Repair", label: "AC repair", price: 500 },
+  { name: "Carpenter", label: "Carpentry", price: 500 },
+  { name: "Salon", label: "At-home salon", price: 500 }
 ];
 
 let currentServiceCategories = serviceCategories;
@@ -15,7 +15,7 @@ function getServiceCategories() {
 
 function setServiceCategories(categories) {
   currentServiceCategories = categories
-    .map(({ name, label }) => ({ name, label }))
+    .map(({ name, label, price }) => ({ name, label, price: price ?? 500 }))
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 

@@ -16,6 +16,7 @@ const paymentsController = require("../src/controllers/paymentsController");
 const { listCategories, getOwnEarnings } = require("../src/controllers/workersController");
 const { authenticate, authorize } = require("../src/middleware/authenticate");
 const { getServiceCategories, serviceCategories, setServiceCategories } = require("../src/config/serviceCategories");
+const ServiceCategory = require("../src/models/ServiceCategory");
 const { isValidFileSignature, getWorkerDocumentPath } = require("../src/utils/workerDocuments");
 const adminController = require("../src/controllers/adminController");
 const authController = require("../src/controllers/authController");
@@ -66,7 +67,12 @@ test("service categories come from the backend and reject unknown worker categor
   try {
     let categories;
     await listCategories({}, { json(payload) { categories = payload.categories; } });
-    assert.deepEqual(categories, categoriesWithCustom.slice().sort((left, right) => left.name.localeCompare(right.name)));
+    assert.deepEqual(
+      categories,
+      categoriesWithCustom
+        .map((category) => ({ ...category, price: category.price ?? 500 }))
+        .sort((left, right) => left.name.localeCompare(right.name))
+    );
 
     const customCategory = await runMiddleware(validateRegister, {
       name: "Ramesh Kumar",
@@ -102,6 +108,69 @@ test("service categories come from the backend and reject unknown worker categor
     setServiceCategories(serviceCategories);
   }
   assert.deepEqual(getServiceCategories(), serviceCategories.slice().sort((left, right) => left.name.localeCompare(right.name)));
+});
+
+test("admin can edit category prices and delete unused categories", async () => {
+  const originalFindOne = ServiceCategory.findOne;
+  const originalWorkerExists = Worker.exists;
+  const originalCategories = getServiceCategories();
+  const category = {
+    name: "Appliance Repair",
+    label: "Appliance repair",
+    price: 500,
+    active: true,
+    async save() { return this; }
+  };
+  let response;
+  try {
+    setServiceCategories([...originalCategories, category]);
+    ServiceCategory.findOne = async () => category;
+    Worker.exists = async () => null;
+    await adminController.updateCategoryPrice(
+      { params: { name: category.name }, body: { price: 750 } },
+      { json(payload) { response = payload; } }
+    );
+    assert.equal(response.category.price, 750);
+    assert.equal(getServiceCategories().find(({ name }) => name === category.name).price, 750);
+
+    await adminController.deleteCategory(
+      { params: { name: category.name } },
+      { json(payload) { response = payload; } }
+    );
+    assert.equal(category.active, false);
+    assert.equal(getServiceCategories().some(({ name }) => name === category.name), false);
+    assert.equal(response.message, "Category deleted.");
+  } finally {
+    ServiceCategory.findOne = originalFindOne;
+    Worker.exists = originalWorkerExists;
+    setServiceCategories(originalCategories);
+  }
+});
+
+test("category prices are validated and categories assigned to professionals cannot be deleted", async () => {
+  const originalFindOne = ServiceCategory.findOne;
+  const originalWorkerExists = Worker.exists;
+  const category = { name: "Plumber", active: true };
+  try {
+    await assert.rejects(
+      adminController.updateCategoryPrice(
+        { params: { name: category.name }, body: { price: 0 } },
+        {}
+      ),
+      (error) => error.status === 400
+    );
+
+    ServiceCategory.findOne = async () => category;
+    Worker.exists = async () => ({ _id: new mongoose.Types.ObjectId() });
+    await assert.rejects(
+      adminController.deleteCategory({ params: { name: category.name } }, {}),
+      (error) => error.status === 409
+    );
+    assert.equal(category.active, true);
+  } finally {
+    ServiceCategory.findOne = originalFindOne;
+    Worker.exists = originalWorkerExists;
+  }
 });
 
 test("registration rejects an invalid role and malformed email", async () => {
