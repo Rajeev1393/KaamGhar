@@ -97,6 +97,7 @@ export default function AuthForm({ initialMode, initialRole, adminOnly = false, 
             <label>Email address<input name="email" required type="email" maxLength={254} autoComplete="email" placeholder="you@example.com" /></label>
             <label>Password<div className="password-field"><input name="password" required type={showPassword ? "text" : "password"} minLength={8} maxLength={72} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="At least 8 characters" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
             <p className={message ? "auth-message visible" : "auth-message"} aria-live="polite">{message}</p>
+            {!adminOnly && mode === "login" && <Link href="/api/auth/password-reset" prefetch={false}>Forgot password?</Link>}
             <button type="submit" className="primary-button auth-submit" disabled={loading}>{loading ? "One moment…" : mode === "login" ? "Sign in" : "Create my account"}{!loading && <ArrowRight size={17} />}</button>
           </form>
           <p className="auth-privacy"><ShieldCheck size={14} /> Your information is encrypted and secure.</p>

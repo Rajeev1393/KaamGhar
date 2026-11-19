@@ -38,5 +38,5 @@ export function formatDate(value: string) {
 }
 
 export function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(value);
 }

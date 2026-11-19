@@ -4,11 +4,12 @@ export interface ServiceCategory {
   name: string;
   label: string;
   price: number;
+  commission?: { type: "percentage" | "fixed"; value: number };
 }
 
 export interface VerificationDocument {
   _id: string;
-  type: "identity" | "address" | "certificate" | "other";
+  type: "identity" | "address" | "certificate" | "other" | "aadhaar" | "pan" | "police_verification";
   originalName: string;
   mimeType: string;
   size: number;
@@ -62,6 +63,7 @@ export interface Booking {
   durationHours: number;
   status: "pending" | "confirmed" | "completed" | "cancelled";
   totalAmount?: number;
+  commissionAmount?: number;
   paymentStatus?: "unpaid" | "paid" | "refund_required";
   providerPayoutStatus?: "pending" | "cleared";
   paymentOrderId?: string;

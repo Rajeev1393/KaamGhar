@@ -9,8 +9,18 @@ import type { Booking, ProviderEarnings, Role, ServiceCategory, User, Verificati
 import DetectCityButton from "@/components/DetectCityButton";
 
 type DashboardProps = { expectedRole: Role };
-type AdminStats = { customers: number; professionals: number; pendingApprovals: number; pendingDocuments: number; bookings: number; completedRevenue: number; paymentsReceived: number; paymentsReceivedCount: number };
+type AdminStats = { customers: number; professionals: number; pendingApprovals: number; pendingDocuments: number; bookings: number; completedRevenue: number; paymentsReceived: number; paymentsReceivedCount: number; commissionReceived: number; providerAmountReceived: number };
 type AdminOverview = { stats: AdminStats; recentBookings: Booking[] };
+const verificationDocumentLabels: Record<VerificationDocument["type"], string> = {
+  identity: "Identity proof",
+  address: "Address proof",
+  certificate: "Service certificate",
+  other: "Other",
+  aadhaar: "Aadhaar card",
+  pan: "PAN card",
+  police_verification: "Police verification"
+};
+const formatBookingAmount = (amount: number) => "\u20B9" + formatPrice(amount);
 type AdminUser = { _id: string; name: string; email: string; phone: string; role: "customer" | "worker"; active: boolean; createdAt: string; worker?: Pick<Worker, "_id" | "profession" | "category" | "approvalStatus" | "earnings"> };
 type RazorpayPaymentResponse = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
 type RazorpayCheckoutOptions = {
@@ -399,6 +409,14 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
   const [userRole, setUserRole] = useState<"all" | "customer" | "worker">("all");
   const [tab, setTab] = useState<"overview" | "pending" | "approved" | "rejected" | "categories" | "users" | "bookings" | "profile">("overview");
   const [showCreateProfessional, setShowCreateProfessional] = useState(false);
+  const [professionalCategory, setProfessionalCategory] = useState("");
+  const professionalRateCategory = categories.find(({ name }) => name === professionalCategory);
+  const hourlyCommission = professionalRateCategory?.commission;
+  const baseRate = professionalRateCategory?.price ?? 0;
+  const commissionPaise = Math.round(hourlyCommission?.type === "percentage"
+    ? baseRate * hourlyCommission.value
+    : (hourlyCommission?.value ?? 0) * 100);
+  const customerHourlyRate = (Math.round(baseRate * 100) + commissionPaise) / 100;
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [busy, setBusy] = useState(true);
   const [usersLoadedKey, setUsersLoadedKey] = useState<string | null>(null);
@@ -603,12 +621,15 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
     try {
       const result = await api<{ category: ServiceCategory }>(`admin/categories/${encodeURIComponent(categoryName)}`, {
         method: "PATCH",
-        body: JSON.stringify({ price }),
+        body: JSON.stringify({
+          price,
+          commission: { type: form.get("commissionType"), value: Number(form.get("commissionValue")) }
+        }),
       });
       setCategories((current) => current.map((category) =>
         category.name === categoryName ? result.category : category
       ));
-      notify(`${categoryName} price updated to ₹${formatPrice(result.category.price)}.`);
+      notify(`${categoryName} price and commission updated.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not update this category price.");
     } finally {
@@ -645,7 +666,6 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
       profession: String(form.get("profession") || "").trim(),
       category: String(form.get("category") || ""),
       city: String(form.get("city") || "").trim(),
-      price: Number(form.get("price")),
     };
     try {
       await api("admin/professionals", {
@@ -653,6 +673,7 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
         body: JSON.stringify(professional),
       });
       formElement.reset();
+      setProfessionalCategory("");
       notify(`${professional.name} added as a pending professional.`);
       setShowCreateProfessional(false);
       setTab("pending");
@@ -664,7 +685,17 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
     }
   }
 
-  const tabs = [{ id: "overview", label: "Overview" }, { id: "pending", label: `Pending${overview?.stats.pendingApprovals ? ` · ${overview.stats.pendingApprovals}` : ""}` }, { id: "approved", label: "Approved" }, { id: "rejected", label: "Rejected" }, { id: "categories", label: "Categories" }, { id: "users", label: "Users" }, { id: "bookings", label: "All bookings" }, { id: "profile", label: "My profile" }] as const;
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    { id: "pending", label: overview?.stats.pendingApprovals ? `Pending · ${overview.stats.pendingApprovals}` : "Pending" },
+    { id: "approved", label: "Approved" },
+    { id: "rejected", label: "Rejected" },
+    { id: "categories", label: "Categories" },
+    { id: "users", label: "Users" },
+    { id: "bookings", label: "All bookings" },
+    { id: "profile", label: "My profile" }
+  ] as const;
+
   return <>
     {error && <p className="inline-error">{error}</p>}
     <div className="admin-tabs">{tabs.map((item) => <button className={tab === item.id ? "admin-tab selected" : "admin-tab"} key={item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}<button className="button button-dark" onClick={() => { setShowCreateProfessional(true); setTab("users"); }}>Create professional</button><button className="button button-outline tab-refresh" onClick={onRefresh}><RefreshCw size={14} /> Refresh</button></div>
@@ -673,6 +704,7 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
       <div className="metric-row admin-metrics"><Metric icon={Users} label="Customers" value={overview?.stats.customers ?? "—"} foot="Registered households" onClick={() => { setUserRole("customer"); setTab("users"); }} /><Metric icon={BriefcaseBusiness} label="Live professionals" value={overview?.stats.professionals ?? "—"} foot="Approved service pros" onClick={() => setTab("approved")} /><Metric icon={ShieldCheck} label="Needs your review" value={overview?.stats.pendingApprovals ?? "—"} foot={`${overview?.stats.pendingDocuments ?? 0} documents pending`} onClick={() => setTab("pending")} /><Metric icon={ClipboardList} label="Total bookings" value={overview?.stats.bookings ?? "—"} foot="Marketplace requests" onClick={() => setTab("bookings")} /><Metric icon={CircleDollarSign} label="Payments received" value={`₹${formatPrice(overview?.stats.paymentsReceived ?? 0)}`} foot={`${overview?.stats.paymentsReceivedCount ?? 0} captured bookings`} onClick={() => setTab("bookings")} /></div>
       <section className="dash-panel"><div className="panel-heading"><div><p className="eyebrow">THE NEIGHBOURHOOD PULSE</p><h2>Latest bookings</h2></div><button className="text-link" onClick={() => setTab("bookings")}>See all <ArrowRight size={15} /></button></div>{busy ? <LoadingLine /> : overview?.recentBookings.length ? <div className="booking-list">{overview.recentBookings.map((booking) => <article className="booking-item" key={booking._id}><span className="booking-item-icon"><WrenchIcon /></span><div className="booking-item-main"><div className="booking-item-title"><strong>{booking.customer?.name || booking.customerName}</strong><StatusPill status={booking.status} /></div><span>{booking.worker?.name || "Pro"} · {formatDate(booking.scheduledAt)}</span><small><MapPin size={12} /> {booking.address}</small><small>Razorpay Order ID: {booking.paymentOrderId || "—"} · {booking.paymentStatus === "paid" ? "Payment received" : booking.paymentStatus === "refund_required" ? "Refund required" : "Unpaid"}</small></div><strong className="booking-item-price">₹{formatPrice(booking.totalAmount || 0)}</strong></article>)}</div> : <EmptyState title="No bookings yet." text="Marketplace activity will show up here." />}</section>
       <div className="revenue-card"><span><CircleDollarSign size={20} /></span><div><small>COMPLETED SERVICE VALUE</small><strong>₹{formatPrice(overview?.stats.completedRevenue || 0)}</strong></div><span className="revenue-note"><Check size={14} /> Completed bookings</span></div>
+      <div className="revenue-card"><span><CircleDollarSign size={20} /></span><div><small>PLATFORM COMMISSION COLLECTED</small><strong>₹{formatPrice(overview?.stats.commissionReceived ?? 0)}</strong></div></div>
     </>}
     {tab === "profile" && <section className="dash-panel"><div className="panel-heading"><div><p className="eyebrow">ADMIN ACCOUNT</p><h2>My profile</h2></div></div><article className="admin-pro-item"><span className="mini-avatar">{user.name[0]?.toUpperCase() || "A"}</span><div className="admin-pro-info"><strong>{user.name}</strong><span>Administrator</span><small>Email: {user.email}</small><small>Phone: {user.phone}</small></div></article></section>}
     {showProfessionalApplications && <section className="dash-panel">
@@ -682,7 +714,8 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
       </div>
       {workersLoading ? <LoadingLine /> : workers.length ? <div className="admin-pro-list">{workers.map((worker) => {
         const documents = worker.verificationDocuments || [];
-        const canApprove = documents.length === 0 || documents.every((document) => document.status === "verified");
+        const unverifiedCount = documents.filter((document) => document.status !== "verified").length;
+        const canApprove = unverifiedCount === 0;
         return <article className="admin-pro-item" key={worker._id}>
           <span className="mini-avatar">{worker.name[0]}</span>
           <div className="admin-pro-info">
@@ -696,12 +729,16 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
               <strong>Verification documents ({documents.length})</strong>
               {documents.length
                 ? documents.map((document) => <div className="verification-document" key={document._id}>
-                    <a href={`/api/admin/professionals/${worker._id}/documents/${document._id}/file`} target="_blank" rel="noreferrer">{document.type}: {document.originalName}</a>
+                    <div className="verification-document-name">
+                      <strong>{verificationDocumentLabels[document.type]}</strong>
+                      <span>{document.originalName}</span>
+                    </div>
+                    <a className="button button-outline" href={`/api/admin/professionals/${worker._id}/documents/${document._id}/file`} target="_blank" rel="noreferrer" aria-label={`Preview ${verificationDocumentLabels[document.type]}: ${document.originalName} (opens in a new tab)`}>Preview</a>
                     <StatusPill status={document.status} />
                     {document.status === "pending" && <><button className="button button-outline" onClick={() => void reviewDocument(worker._id, document._id, "verified")}>Verify</button><button className="button button-outline danger-button" onClick={() => void reviewDocument(worker._id, document._id, "rejected")}>Reject</button></>}
                   </div>)
                 : <small>No documents uploaded yet.</small>}
-              {professionalTabStatus === "pending" && !canApprove && <small className="inline-error">Upload at least one verification document and verify every document before approval.</small>}
+              {professionalTabStatus !== "approved" && !canApprove && <small className="inline-error">Review and verify each uploaded document before approving this application.</small>}
             </div>
           </div>
           <div className="admin-pro-actions">
@@ -710,10 +747,10 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
               {clearingPayoutId === worker._id ? "Processing…" : `Payout ₹${formatPrice(worker.earnings?.pending || 0)}`}
             </button>}
             {professionalTabStatus === "pending"
-              ? <><button className="button button-dark" disabled={!canApprove} title={canApprove ? "Approve verified professional" : "Upload and verify all documents first"} onClick={() => void moderate(worker._id, "approved")}><Check size={14} /> Approve</button><button className="button button-outline danger-button" onClick={() => void moderate(worker._id, "rejected")}>Reject</button></>
+              ? <><button className="button button-dark" disabled={!canApprove} onClick={() => void moderate(worker._id, "approved")}><Check size={14} /> {canApprove ? "Approve" : `Verify ${unverifiedCount} first`}</button><button className="button button-outline danger-button" onClick={() => void moderate(worker._id, "rejected")}>Reject</button></>
               : professionalTabStatus === "approved"
                 ? <button className="button button-outline danger-button" onClick={() => void moderate(worker._id, "rejected")}>Reject</button>
-                : <button className="button button-dark" disabled={!canApprove} title={canApprove ? "Approve verified professional" : "Upload and verify all documents first"} onClick={() => void moderate(worker._id, "approved")}>Approve profile</button>}
+                : <button className="button button-dark" disabled={!canApprove} onClick={() => void moderate(worker._id, "approved")}>{canApprove ? "Approve profile" : `Verify ${unverifiedCount} first`}</button>}
             <button className="button button-outline danger-button" disabled={deletingProfessionalId === worker._id} onClick={() => void deleteProfessional(worker._id, worker.name)}>
               {deletingProfessionalId === worker._id ? "Deleting…" : "Delete"}
             </button>
@@ -738,9 +775,14 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
         {categories.length ? <div className="admin-pro-list">{categories.map((category) => <article className="admin-pro-item" key={category.name}>
           <span className="mini-avatar">{category.name[0]}</span>
           <div className="admin-pro-info"><strong>{category.name}</strong><span>Signup label: {category.label}</span></div>
-          <form className="category-price-form" onSubmit={(event) => void updateCategoryPrice(event, category.name)}>
-            <label>Price (₹)<input key={`${category.name}-${category.price}`} name="price" type="number" min={1} max={1000000} step="1" defaultValue={category.price} required /></label>
-            <button className="button button-dark" disabled={savingCategoryPrice === category.name || deletingCategory === category.name}>{savingCategoryPrice === category.name ? "Saving…" : "Save price"}</button>
+          <form className="category-price-form" key={`${category.price}-${category.commission?.type}-${category.commission?.value}`} onSubmit={(event) => void updateCategoryPrice(event, category.name)}>
+            <label>Price (₹)<input name="price" type="number" min={1} max={1000000} step="1" defaultValue={category.price} required /></label>
+            <label>Commission type<select name="commissionType" defaultValue={category.commission?.type ?? "percentage"}>
+              <option value="percentage">Percentage (%)</option>
+              <option value="fixed">Fixed (₹)</option>
+            </select></label>
+            <label>Commission value<input name="commissionValue" type="number" min={0} step="0.01" defaultValue={category.commission?.value ?? 0} required /></label>
+            <button className="button button-dark" disabled={savingCategoryPrice === category.name || deletingCategory === category.name}>{savingCategoryPrice === category.name ? "Saving…" : "Save"}</button>
           </form>
           <button className="button button-outline danger-button" disabled={deletingCategory === category.name || savingCategoryPrice === category.name} onClick={() => void deleteCategory(category.name)}>
             {deletingCategory === category.name ? "Deleting…" : "Delete"}
@@ -753,7 +795,7 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
         <div><p className="eyebrow">ACCOUNT MANAGEMENT</p><h2>Customers & professionals</h2></div>
         <div className="panel-actions">
           <label className="select-filter">Role<select value={userRole} onChange={(event) => setUserRole(event.target.value as "all" | "customer" | "worker")}><option value="all">Everyone</option><option value="customer">Customers</option><option value="worker">Professionals</option></select><ChevronDown size={14} /></label>
-          <button className="button button-dark" onClick={() => setShowCreateProfessional(!showCreateProfessional)}>{showCreateProfessional ? "Close form" : "Create professional"}</button>
+          <button className="button button-dark" onClick={() => { setProfessionalCategory(""); setShowCreateProfessional(!showCreateProfessional); }}>{showCreateProfessional ? "Close form" : "Create professional"}</button>
         </div>
       </div>
       {showCreateProfessional && <div className="user-create-form">
@@ -767,17 +809,19 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
           </div>
           <div className="form-grid-two">
             <label>Service provided<input name="profession" required minLength={2} maxLength={80} placeholder="e.g. AC repair technician" /></label>
-            <label>Service category<select name="category" required defaultValue="" disabled={categoriesLoading || categories.length === 0}><option value="" disabled>{categoriesLoading ? "Loading categories…" : categories.length ? "Choose a category" : "No categories available"}</option>{categories.map(({ name, label }) => <option key={name} value={name}>{label}</option>)}</select></label>
+            <label>Service category<select name="category" required value={professionalRateCategory?.name ?? ""} onChange={(event) => setProfessionalCategory(event.target.value)} disabled={categoriesLoading || categories.length === 0}><option value="" disabled>{categoriesLoading ? "Loading categories…" : categories.length ? "Choose a category" : "No categories available"}</option>{categories.map(({ name, label }) => <option key={name} value={name}>{label}</option>)}</select></label>
           </div>
           <div className="form-grid-two">
             <label>Email for login<input name="email" type="email" required maxLength={254} /></label>
             <label>Phone<input name="phone" type="tel" required minLength={8} maxLength={20} /></label>
           </div>
           <div className="form-grid-two">
-            <label>Hourly rate (₹)<input name="price" type="number" required min={1} max={1000000} /></label>
+            <label>Customer hourly rate (₹)<input type="text" value={professionalRateCategory ? formatPrice(customerHourlyRate) : ""} placeholder="Choose a category" readOnly />
+              {professionalRateCategory && <small>Category rate ₹{formatPrice(baseRate)} + commission ₹{formatPrice(commissionPaise / 100)}{hourlyCommission?.type === "percentage" ? ` (${hourlyCommission.value}%)` : ""}</small>}
+            </label>
             <label>Temporary password<input name="password" type="password" required minLength={8} maxLength={72} /></label>
           </div>
-          <button className="button button-dark" disabled={savingProfessional || categoriesLoading || categories.length === 0}>{savingProfessional ? "Creating…" : "Create professional account"}</button>
+          <button className="button button-dark" disabled={savingProfessional || categoriesLoading || !professionalRateCategory}>{savingProfessional ? "Creating…" : "Create professional account"}</button>
         </form>
       </div>}
       {usersLoading ? <LoadingLine /> : users.length ? <div className="admin-pro-list">{users.map((account) => <article className="admin-pro-item" key={account._id}>
@@ -807,15 +851,60 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
         </div>
       </article>)}</div> : <EmptyState title="No accounts found." text="Registered customer and professional accounts will appear here." />}
     </section>}
-    {tab === "bookings" && <section className="dash-panel"><div className="panel-heading"><div><p className="eyebrow">MARKETPLACE OPERATIONS</p><h2>All bookings</h2></div><span className="result-count">{bookings.length} total</span></div>{bookings.length ? <div className="admin-booking-list">{bookings.map((booking) => <article className="admin-booking-item" key={booking._id}><div><strong>{booking.customer?.name || booking.customerName}</strong><span>Customer</span></div><ArrowRight size={15} /><div><strong>{booking.worker?.name || "Professional"}</strong><span>{booking.worker?.profession}</span></div><div><strong>{formatDate(booking.scheduledAt)}</strong><span>{booking.address}</span><span>Razorpay Order ID: {booking.paymentOrderId || "—"}</span><span>{booking.paymentStatus === "paid" ? "Payment received" : booking.paymentStatus === "refund_required" ? "Refund required" : "Unpaid"}</span></div><strong>₹{formatPrice(booking.totalAmount || 0)}</strong><StatusPill status={booking.status} /></article>)}</div> : <EmptyState title="No bookings yet." text="When customers book a pro, you’ll see it here." />}</section>}
+    {tab === "bookings" && <section className="dash-panel">
+      <div className="panel-heading"><div><p className="eyebrow">MARKETPLACE OPERATIONS</p><h2>All bookings</h2></div><span className="result-count">{bookings.length} total</span></div>
+      <BookingPaymentSummary stats={overview?.stats} bookings={bookings} />
+      {bookings.length ? <div className="admin-booking-list">{bookings.map((booking) => {
+        const total = booking.totalAmount ?? 0;
+        const commission = booking.commissionAmount ?? 0;
+        const provider = (Math.round(total * 100) - Math.round(commission * 100)) / 100;
+        return <article className="admin-booking-item" key={booking._id}>
+          <div><strong>{booking.customer?.name || booking.customerName}</strong><span>Customer</span></div>
+          <ArrowRight size={15} />
+          <div><strong>{booking.worker?.name || "Professional"}</strong><span>{booking.worker?.profession}</span></div>
+          <div><strong>{formatDate(booking.scheduledAt)}</strong><span>{booking.address}</span><span>Razorpay Order ID: {booking.paymentOrderId || "\u2014"}</span><span>{booking.paymentStatus === "paid" ? "Payment received" : booking.paymentStatus === "refund_required" ? "Refund required" : "Unpaid"}</span></div>
+          <dl className="booking-payment-breakdown">
+            <div><dt>Customer total</dt><dd>{formatBookingAmount(total)}</dd></div>
+            <div><dt>Provider share</dt><dd>{formatBookingAmount(provider)}</dd></div>
+            <div><dt>Platform commission</dt><dd>{formatBookingAmount(commission)}</dd></div>
+          </dl>
+          <StatusPill status={booking.status} />
+        </article>;
+      })}</div> : <EmptyState title="No bookings yet." text="New customer bookings will appear here." />}
+    </section>}
   </>;
+}
+
+function BookingPaymentSummary({ stats, bookings }: { stats?: AdminStats; bookings: Booking[] }) {
+  const hasServerTotals = stats?.providerAmountReceived != null && stats.commissionReceived != null;
+  let providerPaise = 0;
+  let commissionPaise = 0;
+  if (hasServerTotals) {
+    providerPaise = Math.round(stats.providerAmountReceived * 100);
+    commissionPaise = Math.round(stats.commissionReceived * 100);
+  } else {
+    for (const booking of bookings) {
+      if (booking.paymentStatus !== "paid") continue;
+      const commission = Math.round((booking.commissionAmount ?? 0) * 100);
+      commissionPaise += commission;
+      providerPaise += Math.round((booking.totalAmount ?? 0) * 100) - commission;
+    }
+  }
+
+  const foot = hasServerTotals || stats?.bookings === bookings.length ? "From paid bookings" : "From listed paid bookings";
+  const showAmount = (paise: number) => stats ? formatBookingAmount(paise / 100) : "\u2014";
+  return <div className="booking-payment-summary" aria-label="Paid booking totals">
+    <Metric icon={CircleDollarSign} label="Total paid" value={showAmount(providerPaise + commissionPaise)} foot={foot} />
+    <Metric icon={BriefcaseBusiness} label="Provider share" value={showAmount(providerPaise)} foot={foot} />
+    <Metric icon={CircleDollarSign} label="Platform commission" value={showAmount(commissionPaise)} foot={foot} />
+  </div>;
 }
 
 function BookingModal({ worker, user, onClose, onSuccess }: { worker: Worker; user: User; onClose: () => void; onSuccess: () => void }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [minimumDateTime, setMinimumDateTime] = useState("");
-  const [durationHours, setDurationHours] = useState(1);
+  const durationHours = 1;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -829,7 +918,6 @@ function BookingModal({ worker, user, onClose, onSuccess }: { worker: Worker; us
       return;
     }
     const scheduledAt = scheduledDate.toISOString();
-    const selectedDuration = Number(form.get("durationHours"));
     try {
       const order = await api<{
         keyId?: string;
@@ -837,13 +925,21 @@ function BookingModal({ worker, user, onClose, onSuccess }: { worker: Worker; us
         amount?: number;
         currency?: string;
         alreadyPaid?: boolean;
+        pendingBooking?: {
+          provider: string;
+          profession: string;
+          address: string;
+          scheduledAt: string;
+          durationHours: number;
+          notes?: string;
+        };
       }>("bookings/payment/order", {
         method: "POST",
         body: JSON.stringify({
           workerId: worker._id,
           address: form.get("address"),
           scheduledAt,
-          durationHours: selectedDuration,
+          durationHours,
           notes: form.get("notes")
         })
       });
@@ -852,8 +948,29 @@ function BookingModal({ worker, user, onClose, onSuccess }: { worker: Worker; us
         return;
       }
 
+      if (!order.keyId || !order.orderId || !order.amount || !order.currency) {
+        throw new Error("Could not start Razorpay checkout. Please try again.");
+      }
+      const pending = order.pendingBooking;
+      const checkoutHours = pending?.durationHours ?? durationHours;
+      const checkoutProfession = pending?.profession ?? worker.profession;
+      const duration = `${checkoutHours} hour${checkoutHours === 1 ? "" : "s"}`;
+      if (pending && !window.confirm([
+        "Resume your previous booking checkout?",
+        `Professional: ${pending.provider} (${pending.profession})`,
+        `Address: ${pending.address}`,
+        `Date and time: ${formatDate(pending.scheduledAt)}`,
+        `Duration: ${duration}`,
+        `Notes: ${pending.notes || "None"}`,
+        `Total: ₹${(order.amount / 100).toLocaleString("en-IN")}`
+      ].join("\n"))) {
+        setError("Your previous checkout is still pending.");
+        setSaving(false);
+        return;
+      }
+
       await loadRazorpayCheckout();
-      if (!window.Razorpay || !order.keyId || !order.orderId || !order.amount || !order.currency) {
+      if (!window.Razorpay) {
         throw new Error("Could not start Razorpay checkout. Please try again.");
       }
       let verificationStarted = false;
@@ -862,7 +979,7 @@ function BookingModal({ worker, user, onClose, onSuccess }: { worker: Worker; us
         amount: order.amount,
         currency: order.currency,
         name: "KaamGhar",
-        description: `${worker.profession} · ${selectedDuration} hour${selectedDuration === 1 ? "" : "s"}`,
+        description: `${checkoutProfession} · ${duration}`,
         order_id: order.orderId,
         prefill: { name: user.name, email: user.email, contact: user.phone },
         theme: { color: "#243d32" },
@@ -894,7 +1011,7 @@ function BookingModal({ worker, user, onClose, onSuccess }: { worker: Worker; us
       setSaving(false);
     }
   }
-  return <div className="modal-backdrop" onMouseDown={(event) => { if (!saving && event.target === event.currentTarget) onClose(); }}><section className="booking-modal"><button className="modal-close" disabled={saving} onClick={onClose} aria-label="Close"><X size={19} /></button><p className="eyebrow">LET&apos;S GET IT SORTED</p><h2>Book {worker.name.split(" ")[0]}.</h2><p className="modal-intro">{worker.profession} · ₹{formatPrice(worker.price)} per hour</p><form className="modal-form" onSubmit={submit}><label>Service address<textarea name="address" required minLength={8} maxLength={300} rows={3} placeholder="House number, street, area, city" /></label><label>Preferred date & time<input name="scheduledAt" required type="datetime-local" min={minimumDateTime} onFocus={() => { if (!minimumDateTime) setMinimumDateTime(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)); }} /></label><label>How many hours?<select name="durationHours" value={durationHours} onChange={(event) => setDurationHours(Number(event.target.value))}><option value="1">1 hour · ₹{formatPrice(worker.price)}</option><option value="2">2 hours · ₹{formatPrice(worker.price * 2)}</option><option value="3">3 hours · ₹{formatPrice(worker.price * 3)}</option><option value="4">4 hours · ₹{formatPrice(worker.price * 4)}</option><option value="6">6 hours · ₹{formatPrice(worker.price * 6)}</option><option value="8">8 hours · ₹{formatPrice(worker.price * 8)}</option><option value="12">12 hours · ₹{formatPrice(worker.price * 12)}</option></select></label><label>Anything else? <span className="optional-text">Optional</span><textarea name="notes" rows={2} maxLength={500} placeholder="A little more about the job" /></label>{error && <p className="inline-error">{error}</p>}<button disabled={saving} className="button button-dark modal-submit">{saving ? "Opening payment…" : `Pay ₹${formatPrice(worker.price * durationHours)} & book`} <ArrowRight size={16} /></button><small>Your booking is sent to the professional only after successful payment.</small></form></section></div>;
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (!saving && event.target === event.currentTarget) onClose(); }}><section className="booking-modal"><button className="modal-close" disabled={saving} onClick={onClose} aria-label="Close"><X size={19} /></button><p className="eyebrow">LET&apos;S GET IT SORTED</p><h2>Book {worker.name.split(" ")[0]}.</h2><p className="modal-intro">{worker.profession} · ₹{formatPrice(worker.price)} per hour</p><form className="modal-form" onSubmit={submit}><label>Service address<textarea name="address" required minLength={8} maxLength={300} rows={3} placeholder="House number, street, area, city" /></label><label>Preferred date & time<input name="scheduledAt" required type="datetime-local" min={minimumDateTime} onFocus={() => { if (!minimumDateTime) setMinimumDateTime(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)); }} /></label>{/* <label>How many hours?<select name="durationHours" value={durationHours} onChange={(event) => setDurationHours(Number(event.target.value))}><option value="1">1 hour · ₹{formatPrice(worker.price)}</option><option value="2">2 hours · ₹{formatPrice(worker.price * 2)}</option><option value="3">3 hours · ₹{formatPrice(worker.price * 3)}</option><option value="4">4 hours · ₹{formatPrice(worker.price * 4)}</option><option value="6">6 hours · ₹{formatPrice(worker.price * 6)}</option><option value="8">8 hours · ₹{formatPrice(worker.price * 8)}</option><option value="12">12 hours · ₹{formatPrice(worker.price * 12)}</option></select></label> */}<div>Duration: {durationHours} hour</div><label>Anything else? <span className="optional-text">Optional</span><textarea name="notes" rows={2} maxLength={500} placeholder="A little more about the job" /></label>{error && <p className="inline-error">{error}</p>}<button disabled={saving} className="button button-dark modal-submit">{saving ? "Opening payment…" : `Pay ₹${formatPrice(worker.price * durationHours)} & book`} <ArrowRight size={16} /></button><small>Your booking is sent to the professional only after successful payment.</small></form></section></div>;
 }
 
 function Metric({ icon: Icon, label, value, foot, onClick }: { icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; label: string; value: string | number; foot: string; onClick?: () => void }) {

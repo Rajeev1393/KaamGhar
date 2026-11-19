@@ -24,9 +24,14 @@
 
 .document-upload-panel { margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--line); }
 .panel-actions { display: flex; align-items: center; gap: 9px; }
-.category-price-form { display: flex; align-items: flex-end; gap: 9px; }
+.category-price-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 9px; }
+.booking-payment-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr)); gap: 10px; margin-bottom: 14px; }
+.booking-payment-breakdown { display: grid; gap: 4px; margin: 0; font-size: 9px; }
+.booking-payment-breakdown > div { display: flex; justify-content: space-between; gap: 10px; }
+.booking-payment-breakdown dt { color: #59665c; }
+.booking-payment-breakdown dd { margin: 0; font-weight: 700; white-space: nowrap; }
 .category-price-form label { width: 110px; margin: 0; color: #57635a; font-size: 9px; font-weight: 700; }
-.category-price-form input { width: 100%; margin-top: 5px; padding: 8px; border: 1px solid #e1e4dc; border-radius: 5px; background: white; color: var(--ink); font-size: 10px; }
+.category-price-form :is(input, select) { width: 100%; margin-top: 5px; padding: 8px; border: 1px solid #e1e4dc; border-radius: 5px; background: white; color: var(--ink); font-size: 10px; }
 .user-create-form { margin-bottom: 16px; padding: 16px; border: 1px solid #e5e9e1; border-radius: 6px; background: #fafbf8; }
 .user-create-form h3 { margin: 6px 0; font: 700 13px var(--font-display); }
 .user-create-form > p:not(.eyebrow) { margin: 0 0 14px; color: var(--muted-dark); font-size: 9px; line-height: 1.6; }
@@ -40,8 +45,10 @@
 .document-status-item, .verification-document { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 9px; border: 1px solid #e7e9e2; border-radius: 5px; background: #fffefa; font-size: 10px; }
 .document-status-item > span:first-child { flex: 1; }
 .verification-documents > strong { font-size: 11px; }
-.verification-document a { flex: 1; min-width: 130px; color: var(--green); text-decoration: underline; }
+.verification-document-name { display: grid; flex: 1 1 130px; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.verification-document-name span { color: #59665c; }
 .verification-document .button { padding: 6px 8px; font-size: 9px; }
+.admin-pro-actions .button-dark:disabled { opacity: .5; cursor: not-allowed; }
 .admin-pro-info { min-width: 0; }
 .admin-pro-actions { align-items: flex-end; flex-wrap: wrap; }
 .status-active, .status-verified { background: #e7f1e7; color: #34704e; }
@@ -51,7 +58,7 @@
   .document-upload-form .button { justify-content: center; }
   .verification-document { align-items: flex-start; }
   .panel-actions { align-items: flex-end; flex-direction: column-reverse; }
-  .category-price-form { align-items: flex-end; flex-direction: column-reverse; }
+  .category-price-form { align-items: flex-start; flex-direction: column; }
 }
 
 * { box-sizing: border-box; }
