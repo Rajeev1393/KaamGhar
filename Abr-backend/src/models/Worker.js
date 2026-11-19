@@ -1,10 +1,11 @@
 const mongoose = require("mongoose");
+const { documentTypes } = require("../utils/workerDocuments");
 
 const verificationDocumentSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["identity", "address", "certificate", "other"],
+      enum: documentTypes,
       required: true
     },
     originalName: { type: String, required: true, maxlength: 180 },
@@ -29,6 +30,7 @@ const workerSchema = new mongoose.Schema(
     rating: { type: Number, required: true, min: 0, max: 5, default: 4.8 },
     reviewCount: { type: Number, min: 0, default: 0 },
     price: { type: Number, required: true, min: 0 },
+    hourlyCommission: { type: Number, min: 0, select: false },
     priceUnit: { type: String, enum: ["hour"], default: "hour" },
     image: { type: String, default: "" },
     description: { type: String, trim: true, maxlength: 300 },

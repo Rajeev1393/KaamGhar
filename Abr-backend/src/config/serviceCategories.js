@@ -15,7 +15,12 @@ function getServiceCategories() {
 
 function setServiceCategories(categories) {
   currentServiceCategories = categories
-    .map(({ name, label, price }) => ({ name, label, price: price ?? 500 }))
+    .map(({ name, label, price, commission }) => ({
+      name,
+      label,
+      price: price ?? 500,
+      ...(commission?.type && { commission: { type: commission.type, value: commission.value } })
+    }))
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
@@ -28,7 +33,18 @@ function isServiceCategory(value) {
   return Boolean(findServiceCategory(value));
 }
 
+function getCategoryPricing({ price, commission }) {
+  const commissionPaise = Math.round(commission?.type === "percentage"
+    ? price * commission.value
+    : (commission?.value ?? 0) * 100);
+  return {
+    price: (Math.round(price * 100) + commissionPaise) / 100,
+    hourlyCommission: commissionPaise / 100
+  };
+}
+
 module.exports = {
+  getCategoryPricing,
   findServiceCategory,
   getServiceCategories,
   isServiceCategory,

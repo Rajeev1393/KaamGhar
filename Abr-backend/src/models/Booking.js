@@ -22,6 +22,7 @@ const bookingSchema = new mongoose.Schema(
       index: true
     },
     totalAmount: { type: Number, min: 0 },
+    commissionAmount: { type: Number, min: 0 },
     paymentStatus: {
       type: String,
       enum: ["unpaid", "paid", "refund_required"],

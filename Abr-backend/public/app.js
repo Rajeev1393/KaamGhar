@@ -132,15 +132,10 @@ function openBookingDialog(button) {
   document.querySelector("#booking-worker-id").value = button.dataset.workerId;
   document.querySelector("#booking-profession").textContent = button.dataset.profession;
   const hourlyRate = Number(button.dataset.price);
-  const durationField = bookingForm.elements.durationHours;
   const estimate = document.querySelector("#booking-estimate");
   document.querySelector("#booking-intro").textContent =
     `${button.dataset.profession} · ₹${formatPrice(hourlyRate)} per hour`;
-  const updateEstimate = () => {
-    estimate.textContent = `Estimated total: ₹${formatPrice(hourlyRate * Number(durationField.value))}`;
-  };
-  durationField.onchange = updateEstimate;
-  updateEstimate();
+  estimate.textContent = `Estimated total: ₹${formatPrice(hourlyRate)}`;
   const minimumDate = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 16);
@@ -161,6 +156,7 @@ bookingForm.addEventListener("submit", async (event) => {
   submitButton.textContent = "Sending request...";
 
   const data = Object.fromEntries(new FormData(bookingForm).entries());
+  data.durationHours = 1;
   data.scheduledAt = new Date(data.scheduledAt).toISOString();
   try {
     const response = await fetch("/api/bookings", {

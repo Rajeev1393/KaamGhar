@@ -2,19 +2,19 @@ const fs = require("node:fs/promises");
 const Worker = require("../models/Worker");
 const httpError = require("../utils/httpError");
 const {
+  documentTypes,
   isValidFileSignature,
   saveWorkerDocument
 } = require("../utils/workerDocuments");
 
-const documentTypes = new Set(["identity", "address", "certificate", "other"]);
 const maximumDocuments = 10;
 
 async function upload(req, res) {
   if (!req.file || !isValidFileSignature(req.file)) {
     throw httpError(400, "The file content does not match a supported PDF, JPG, or PNG document.");
   }
-  if (!documentTypes.has(req.body.type)) {
-    throw httpError(400, "Choose an identity, address, certificate, or other document type.");
+  if (!documentTypes.includes(req.body.type)) {
+    throw httpError(400, "Choose a supported verification document type.");
   }
 
   const worker = await Worker.findOne({ _id: req.user.worker, user: req.user._id });

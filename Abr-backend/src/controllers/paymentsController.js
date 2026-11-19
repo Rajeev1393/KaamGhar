@@ -80,6 +80,7 @@ async function finalizeBookingCheckout(checkoutId, payment) {
         durationHours: checkout.durationHours,
         notes: checkout.notes,
         totalAmount: checkout.totalAmount,
+        commissionAmount: checkout.commissionAmount,
         paymentStatus: "paid",
         paymentOrderId: checkout.paymentOrderId,
         paymentId: payment.id,
@@ -140,7 +141,7 @@ async function createBookingOrder(req, res) {
     available: true,
     approvalStatus: "approved",
     deletedAt: { $exists: false }
-  });
+  }, "+hourlyCommission");
   if (!worker) throw httpError(404, "This professional is not available.");
 
   const totalAmount = worker.price * details.durationHours;
@@ -160,15 +161,27 @@ async function createBookingOrder(req, res) {
       return res.json({ alreadyPaid: true, booking: paidBooking });
     }
 
+    let pendingBooking;
     if (!sameCheckoutDetails(pendingCheckout, worker, details, totalAmount)) {
-      throw httpError(409, "You have an unfinished payment checkout. Complete it with the same details or contact support.");
+      const pendingWorker = pendingCheckout.worker.equals(worker._id)
+        ? worker
+        : await Worker.findById(pendingCheckout.worker).select("name profession");
+      pendingBooking = {
+        provider: pendingWorker?.name || "Previous professional",
+        profession: pendingWorker?.profession || "Home service",
+        address: pendingCheckout.address,
+        scheduledAt: pendingCheckout.scheduledAt,
+        durationHours: pendingCheckout.durationHours,
+        notes: pendingCheckout.notes
+      };
     }
     const { keyId } = razorpayCredentials();
     return res.json({
       keyId,
       orderId: pendingCheckout.paymentOrderId,
-      amount,
-      currency: "INR"
+      amount: Math.round(pendingCheckout.totalAmount * 100),
+      currency: "INR",
+      pendingBooking
     });
   }
 
@@ -184,6 +197,7 @@ async function createBookingOrder(req, res) {
     durationHours: details.durationHours,
     notes: details.notes,
     totalAmount,
+    commissionAmount: Math.round(Math.min(worker.hourlyCommission ?? 0, worker.price) * details.durationHours * 100) / 100,
     paymentOrderId: "pending"
   });
   const order = await razorpayRequest("/orders", {

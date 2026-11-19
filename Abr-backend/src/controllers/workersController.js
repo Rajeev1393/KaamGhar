@@ -31,7 +31,7 @@ async function listPublic(req, res) {
 }
 
 async function listCategories(req, res) {
-  res.json({ categories: getServiceCategories() });
+  res.json({ categories: getServiceCategories().map(({ name, label, price }) => ({ name, label, price })) });
 }
 
 async function getOwnProfile(req, res) {
@@ -45,16 +45,17 @@ async function getOwnEarnings(req, res) {
   if (!req.user.worker) throw httpError(404, "Professional profile was not found.");
   const [summary] = await Booking.aggregate([
     { $match: { worker: new mongoose.Types.ObjectId(req.user.worker), paymentStatus: "paid" } },
+    { $set: { providerAmount: { $round: [{ $subtract: [{ $ifNull: ["$totalAmount", 0] }, { $ifNull: ["$commissionAmount", 0] }] }, 2] } } },
     {
       $group: {
         _id: null,
-        total: { $sum: { $ifNull: ["$totalAmount", 0] } },
+        total: { $sum: "$providerAmount" },
         pending: {
           $sum: {
             $cond: [
               { $eq: ["$providerPayoutStatus", "cleared"] },
               0,
-              { $ifNull: ["$totalAmount", 0] }
+              "$providerAmount"
             ]
           }
         },
@@ -62,7 +63,7 @@ async function getOwnEarnings(req, res) {
           $sum: {
             $cond: [
               { $eq: ["$providerPayoutStatus", "cleared"] },
-              { $ifNull: ["$totalAmount", 0] },
+              "$providerAmount",
               0
             ]
           }

@@ -44,6 +44,7 @@ async function register(req, res) {
         city: req.body.city,
         experience: req.body.experience,
         price: req.body.price,
+        hourlyCommission: req.body.hourlyCommission,
         priceUnit: "hour",
         description: req.body.description,
         approvalStatus: "pending",

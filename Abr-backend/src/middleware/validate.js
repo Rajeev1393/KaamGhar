@@ -1,5 +1,5 @@
 const httpError = require("../utils/httpError");
-const { findServiceCategory, getServiceCategories } = require("../config/serviceCategories");
+const { findServiceCategory, getCategoryPricing, getServiceCategories } = require("../config/serviceCategories");
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phonePattern = /^[+]?[\d\s()-]{8,20}$/;
@@ -40,15 +40,18 @@ function validateRegister(req, res, next) {
       body.city = requiredString(body.city, "City", 2, 80);
       body.description = requiredString(body.description, "Professional introduction", 10, 300);
       const experience = Number(body.experience);
-      const price = Number(body.price);
+      const pricing = body.price === undefined
+        ? getCategoryPricing(serviceCategory)
+        : { price: Number(body.price), hourlyCommission: undefined };
       if (!Number.isInteger(experience) || experience < 0 || experience > 60) {
         throw httpError(400, "Experience must be between 0 and 60 years.");
       }
-      if (!Number.isFinite(price) || price < 1 || price > 1000000) {
+      if (body.price !== undefined && (!Number.isFinite(pricing.price) || pricing.price < 1 || pricing.price > 1000000)) {
         throw httpError(400, "Starting price must be greater than zero.");
       }
       body.experience = experience;
-      body.price = price;
+      body.price = pricing.price;
+      body.hourlyCommission = pricing.hourlyCommission;
       body.priceUnit = "hour";
     }
     return next();

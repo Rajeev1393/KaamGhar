@@ -15,6 +15,9 @@ const userSchema = new mongoose.Schema(
     },
     phone: { type: String, required: true, trim: true, maxlength: 20 },
     password: { type: String, required: true, minlength: 8, select: false },
+    passwordResetDigest: { type: String, select: false, index: { sparse: true } },
+    passwordResetExpiresAt: { type: Date, select: false },
+    sessionVersion: { type: Number, default: 0 },
     role: {
       type: String,
       enum: ["customer", "worker", "admin"],

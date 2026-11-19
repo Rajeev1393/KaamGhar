@@ -9,7 +9,7 @@ function getSecret() {
 }
 
 function signToken(user) {
-  return jwt.sign({ sub: user.id.toString(), role: user.role }, getSecret(), {
+  return jwt.sign({ sub: user.id.toString(), role: user.role, version: user.sessionVersion ?? 0 }, getSecret(), {
     expiresIn: "12h",
     issuer: "kaamghar"
   });

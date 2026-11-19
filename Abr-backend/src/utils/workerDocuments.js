@@ -3,6 +3,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 
 const privateDirectory = path.resolve(__dirname, "..", "..", "private-storage", "worker-documents");
+const documentTypes = ["identity", "address", "certificate", "other", "aadhaar", "pan", "police_verification"];
 
 function isValidFileSignature(file) {
   const buffer = file.buffer;
@@ -33,4 +34,4 @@ function getWorkerDocumentPath(storageName) {
   return path.dirname(filePath) === privateDirectory ? filePath : null;
 }
 
-module.exports = { getWorkerDocumentPath, isValidFileSignature, saveWorkerDocument };
+module.exports = { documentTypes, getWorkerDocumentPath, isValidFileSignature, saveWorkerDocument };

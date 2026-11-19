@@ -18,6 +18,7 @@ function setMode(nextMode) {
     ? "One account for all your home services."
     : "Your home services, all in one place.";
   document.querySelector("#auth-submit-label").textContent = isRegister ? "Create account" : "Sign in";
+  document.querySelector("#forgot-password-link").hidden = isRegister;
   authForm.elements.password.autocomplete = isRegister ? "new-password" : "current-password";
   authMessage.textContent = "";
   updateWorkerFields();

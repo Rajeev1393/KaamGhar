@@ -14,7 +14,8 @@ async function authenticate(req, res, next) {
 
     const payload = verifyToken(token);
     const user = await User.findById(payload.sub);
-    if (!user || !user.active || user.role !== payload.role) {
+    if (!user || !user.active || user.role !== payload.role ||
+        (user.sessionVersion ?? 0) !== (payload.version ?? 0)) {
       return res.status(401).json({ message: "Your session is no longer valid. Please sign in again." });
     }
 

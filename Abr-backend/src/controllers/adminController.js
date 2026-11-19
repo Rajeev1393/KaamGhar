@@ -7,7 +7,7 @@ const Worker = require("../models/Worker");
 const ServiceCategory = require("../models/ServiceCategory");
 const httpError = require("../utils/httpError");
 const { getWorkerDocumentPath } = require("../utils/workerDocuments");
-const { findServiceCategory, getServiceCategories, setServiceCategories } = require("../config/serviceCategories");
+const { findServiceCategory, getCategoryPricing, getServiceCategories, setServiceCategories } = require("../config/serviceCategories");
 const { emailPattern, phonePattern, requiredString } = require("../middleware/validate");
 
 async function listCategories(req, res) {
@@ -41,6 +41,7 @@ async function createCategory(req, res) {
       existingCategory.name = name;
       existingCategory.label = label;
       existingCategory.price = 500;
+      existingCategory.commission = undefined;
       existingCategory.active = true;
       category = await existingCategory.save();
     } else {
@@ -63,12 +64,27 @@ async function updateCategoryPrice(req, res) {
   const normalizedName = name.toLowerCase();
   const category = await ServiceCategory.findOne({ normalizedName, active: true });
   if (!category) throw httpError(404, "Service category was not found.");
-  category.price = req.body.price;
+  const { price, commission = category.commission } = req.body;
+  if (req.body.commission !== undefined || commission?.type) {
+    if (commission?.type !== "percentage" && commission?.type !== "fixed") {
+      throw httpError(400, "Choose percentage or fixed commission.");
+    }
+    const max = commission.type === "percentage" ? 100 : price;
+    if (typeof commission.value !== "number" || !Number.isFinite(commission.value) ||
+        commission.value < 0 || commission.value > max) {
+      throw httpError(400, commission.type === "percentage"
+        ? "Commission must be between 0% and 100%."
+        : "Fixed commission must be between ₹0 and the category price.");
+    }
+    category.commission = { type: commission.type, value: commission.value };
+  }
+  category.price = price;
   await category.save();
-  setServiceCategories(getServiceCategories().map((current) =>
-    current.name.toLowerCase() === normalizedName ? category : current
-  ));
-  res.json({ category: { name: category.name, label: category.label, price: category.price } });
+  setServiceCategories([
+    ...getServiceCategories().filter((current) => current.name.toLowerCase() !== normalizedName),
+    category
+  ]);
+  res.json({ category: findServiceCategory(name) });
 }
 
 async function deleteCategory(req, res) {
@@ -98,7 +114,6 @@ async function createProfessional(req, res) {
   const profession = requiredString(req.body.profession, "Service", 2, 80);
   const categoryName = requiredString(req.body.category, "Service category", 2, 60);
   const city = requiredString(req.body.city, "Location", 2, 80);
-  const price = Number(req.body.price);
   const serviceCategory = findServiceCategory(categoryName);
 
   if (!emailPattern.test(email) || !phonePattern.test(phone)) {
@@ -108,9 +123,6 @@ async function createProfessional(req, res) {
     throw httpError(400, "Password must be 8 to 72 characters long.");
   }
   if (!serviceCategory) throw httpError(400, "Choose a service category from the list.");
-  if (!Number.isFinite(price) || price < 1 || price > 1000000) {
-    throw httpError(400, "Hourly rate must be greater than zero.");
-  }
   if (await User.exists({ email })) throw httpError(409, "An account with this email already exists.");
 
   const user = new User({ name, email, phone, password, role: "worker", active: true });
@@ -124,7 +136,7 @@ async function createProfessional(req, res) {
       category: serviceCategory.name,
       city,
       experience: 0,
-      price,
+      ...getCategoryPricing(serviceCategory),
       priceUnit: "hour",
       approvalStatus: "pending",
       available: false
@@ -162,7 +174,17 @@ async function overview(req, res) {
       ]),
       Booking.aggregate([
         { $match: { paymentStatus: { $in: ["paid", "refund_required"] } } },
-        { $group: { _id: null, total: { $sum: "$totalAmount" }, count: { $sum: 1 } } }
+        { $group: {
+          _id: null,
+          total: { $sum: "$totalAmount" },
+          count: { $sum: 1 },
+          commission: { $sum: { $cond: [{ $eq: ["$paymentStatus", "paid"] }, "$commissionAmount", 0] } },
+          providerAmount: { $sum: { $cond: [
+            { $eq: ["$paymentStatus", "paid"] },
+            { $subtract: [{ $ifNull: ["$totalAmount", 0] }, { $ifNull: ["$commissionAmount", 0] }] },
+            0
+          ] } }
+        } }
       ]),
       Booking.find()
         .populate("customer", "name")
@@ -181,7 +203,9 @@ async function overview(req, res) {
       bookings,
       completedRevenue: revenue[0] ? revenue[0].total : 0,
       paymentsReceived: paymentsReceived[0] ? paymentsReceived[0].total : 0,
-      paymentsReceivedCount: paymentsReceived[0] ? paymentsReceived[0].count : 0
+      paymentsReceivedCount: paymentsReceived[0] ? paymentsReceived[0].count : 0,
+      commissionReceived: paymentsReceived[0]?.commission ?? 0,
+      providerAmountReceived: paymentsReceived[0]?.providerAmount ?? 0
     },
     recentBookings
   });
@@ -201,16 +225,17 @@ async function getProviderPayoutTotals(workerIds) {
   if (!workerIds.length) return new Map();
   const summaries = await Booking.aggregate([
     { $match: { worker: { $in: workerIds }, paymentStatus: "paid" } },
+    { $set: { providerAmount: { $round: [{ $subtract: [{ $ifNull: ["$totalAmount", 0] }, { $ifNull: ["$commissionAmount", 0] }] }, 2] } } },
     {
       $group: {
         _id: "$worker",
-        total: { $sum: { $ifNull: ["$totalAmount", 0] } },
+        total: { $sum: "$providerAmount" },
         pending: {
           $sum: {
             $cond: [
               { $eq: ["$providerPayoutStatus", "cleared"] },
               0,
-              { $ifNull: ["$totalAmount", 0] }
+              "$providerAmount"
             ]
           }
         },
@@ -218,7 +243,7 @@ async function getProviderPayoutTotals(workerIds) {
           $sum: {
             $cond: [
               { $eq: ["$providerPayoutStatus", "cleared"] },
-              { $ifNull: ["$totalAmount", 0] },
+              "$providerAmount",
               0
             ]
           }
@@ -276,7 +301,7 @@ async function clearProfessionalPayouts(req, res) {
         paymentStatus: "paid",
         providerPayoutStatus: { $ne: "cleared" }
       })
-        .select("_id totalAmount")
+        .select("_id totalAmount commissionAmount")
         .session(session)
         .lean();
       if (!pendingBookings.length) throw httpError(409, "There is no pending payout for this professional.");
@@ -301,7 +326,9 @@ async function clearProfessionalPayouts(req, res) {
         throw httpError(409, "Payout records changed. Refresh and try again.");
       }
       payout = {
-        amount: pendingBookings.reduce((total, booking) => total + (booking.totalAmount || 0), 0),
+        amount: pendingBookings.reduce((paise, booking) =>
+          paise + Math.round((booking.totalAmount || 0) * 100) - Math.round((booking.commissionAmount || 0) * 100), 0
+        ) / 100,
         bookingCount: pendingBookings.length,
         clearedAt,
         reference: reference || null

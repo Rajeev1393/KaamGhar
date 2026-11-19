@@ -388,7 +388,7 @@ test("booking checkout creates a server-priced order without creating a booking"
   let bookingSaveCount = 0;
   process.env.RAZORPAY_KEY_ID = "rzp_test_example";
   process.env.RAZORPAY_KEY_SECRET = "local-test-key-secret";
-  Worker.findOne = async () => ({ _id: workerId, price: 1250 });
+  Worker.findOne = async () => ({ _id: workerId, price: 1250, hourlyCommission: 75.25 });
   BookingCheckout.findOne = () => ({ sort: async () => null });
   BookingCheckout.prototype.save = async function save() {
     savedCheckout = this;
@@ -443,6 +443,7 @@ test("booking checkout creates a server-priced order without creating a booking"
   assert.equal(Object.hasOwn(orderRequest.body, "expire_by"), false);
   assert.ok(orderRequest.body.receipt.length <= 40);
   assert.equal(savedCheckout.totalAmount, 2500);
+  assert.equal(savedCheckout.commissionAmount, 150.5);
   assert.equal(savedCheckout.paymentOrderId, "order_checkout123");
   assert.equal(bookingSaveCount, 0);
   assert.equal(responseStatus, 201);
@@ -697,7 +698,7 @@ test("admin overview reports received payments and includes Razorpay order ids",
   Booking.countDocuments = async () => 9;
   Booking.aggregate = async (pipeline) => pipeline[0].$match.status === "completed"
     ? [{ total: 12000 }]
-    : [{ total: 5500, count: 4 }];
+    : [{ total: 5500, count: 4, commission: 350.75, providerAmount: 5149.25 }];
   Booking.find = () => ({
     populate() { return this; },
     sort() { return this; },
@@ -718,6 +719,8 @@ test("admin overview reports received payments and includes Razorpay order ids",
 
   assert.equal(responseBody.stats.paymentsReceived, 5500);
   assert.equal(responseBody.stats.paymentsReceivedCount, 4);
+  assert.equal(responseBody.stats.commissionReceived, 350.75);
+  assert.equal(responseBody.stats.providerAmountReceived, 5149.25);
   assert.equal(responseBody.recentBookings[0].paymentOrderId, "order_test123");
 });
 
@@ -835,7 +838,7 @@ test("admin can mark a provider's pending paid bookings as cleared", async () =>
     startSession: mongoose.startSession
   };
   const pendingBookings = [
-    { _id: new mongoose.Types.ObjectId(), totalAmount: 2000 },
+    { _id: new mongoose.Types.ObjectId(), totalAmount: 2000, commissionAmount: 125.5 },
     { _id: new mongoose.Types.ObjectId(), totalAmount: 3500 }
   ];
   let responseBody;
@@ -874,7 +877,7 @@ test("admin can mark a provider's pending paid bookings as cleared", async () =>
   assert.equal(update.$set.providerPayoutStatus, "cleared");
   assert.equal(update.$set.providerPayoutClearedBy.toString(), adminId.toString());
   assert.equal(update.$set.providerPayoutReference, "BANK-UTR-EXAMPLE");
-  assert.equal(responseBody.payout.amount, 5500);
+  assert.equal(responseBody.payout.amount, 5374.5);
   assert.equal(responseBody.payout.bookingCount, 2);
 });
 
