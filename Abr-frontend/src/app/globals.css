@@ -24,6 +24,9 @@
 
 .document-upload-panel { margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--line); }
 .panel-actions { display: flex; align-items: center; gap: 9px; }
+.category-price-form { display: flex; align-items: flex-end; gap: 9px; }
+.category-price-form label { width: 110px; margin: 0; color: #57635a; font-size: 9px; font-weight: 700; }
+.category-price-form input { width: 100%; margin-top: 5px; padding: 8px; border: 1px solid #e1e4dc; border-radius: 5px; background: white; color: var(--ink); font-size: 10px; }
 .user-create-form { margin-bottom: 16px; padding: 16px; border: 1px solid #e5e9e1; border-radius: 6px; background: #fafbf8; }
 .user-create-form h3 { margin: 6px 0; font: 700 13px var(--font-display); }
 .user-create-form > p:not(.eyebrow) { margin: 0 0 14px; color: var(--muted-dark); font-size: 9px; line-height: 1.6; }
@@ -48,6 +51,7 @@
   .document-upload-form .button { justify-content: center; }
   .verification-document { align-items: flex-start; }
   .panel-actions { align-items: flex-end; flex-direction: column-reverse; }
+  .category-price-form { align-items: flex-end; flex-direction: column-reverse; }
 }
 
 * { box-sizing: border-box; }

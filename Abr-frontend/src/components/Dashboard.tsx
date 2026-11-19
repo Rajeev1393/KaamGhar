@@ -399,9 +399,12 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
   const [userRole, setUserRole] = useState<"all" | "customer" | "worker">("all");
   const [tab, setTab] = useState<"overview" | "pending" | "approved" | "rejected" | "categories" | "users" | "bookings" | "profile">("overview");
   const [showCreateProfessional, setShowCreateProfessional] = useState(false);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [busy, setBusy] = useState(true);
   const [usersLoadedKey, setUsersLoadedKey] = useState<string | null>(null);
   const [savingCategory, setSavingCategory] = useState(false);
+  const [savingCategoryPrice, setSavingCategoryPrice] = useState<string | null>(null);
+  const [deletingCategory, setDeletingCategory] = useState<string | null>(null);
   const [savingProfessional, setSavingProfessional] = useState(false);
   const [deletingProfessionalId, setDeletingProfessionalId] = useState<string | null>(null);
   const [clearingPayoutId, setClearingPayoutId] = useState<string | null>(null);
@@ -472,9 +475,22 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
 
   useEffect(() => {
     if (tab !== "categories" && !(tab === "users" && showCreateProfessional)) return;
-    api<{ categories: ServiceCategory[] }>("admin/categories")
-      .then(({ categories: result }) => setCategories(result))
-      .catch((reason: Error) => setError(reason.message));
+    let active = true;
+    async function loadCategories() {
+      await Promise.resolve();
+      if (!active) return;
+      setCategoriesLoading(true);
+      try {
+        const { categories: result } = await api<{ categories: ServiceCategory[] }>("admin/categories");
+        if (active) setCategories(result);
+      } catch (reason) {
+        if (active) setError(reason instanceof Error ? reason.message : "Could not load categories.");
+      } finally {
+        if (active) setCategoriesLoading(false);
+      }
+    }
+    void loadCategories();
+    return () => { active = false; };
   }, [tab, refresh, showCreateProfessional]);
 
   async function moderate(id: string, nextStatus: "approved" | "rejected") {
@@ -578,6 +594,43 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
     }
   }
 
+  async function updateCategoryPrice(event: React.FormEvent<HTMLFormElement>, categoryName: string) {
+    event.preventDefault();
+    setError("");
+    setSavingCategoryPrice(categoryName);
+    const form = new FormData(event.currentTarget);
+    const price = Number(form.get("price"));
+    try {
+      const result = await api<{ category: ServiceCategory }>(`admin/categories/${encodeURIComponent(categoryName)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ price }),
+      });
+      setCategories((current) => current.map((category) =>
+        category.name === categoryName ? result.category : category
+      ));
+      notify(`${categoryName} price updated to ₹${formatPrice(result.category.price)}.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not update this category price.");
+    } finally {
+      setSavingCategoryPrice(null);
+    }
+  }
+
+  async function deleteCategory(categoryName: string) {
+    if (!window.confirm(`Delete the ${categoryName} category? Categories assigned to professionals cannot be deleted.`)) return;
+    setError("");
+    setDeletingCategory(categoryName);
+    try {
+      await api(`admin/categories/${encodeURIComponent(categoryName)}`, { method: "DELETE" });
+      setCategories((current) => current.filter((category) => category.name !== categoryName));
+      notify(`${categoryName} category deleted.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not delete this category.");
+    } finally {
+      setDeletingCategory(null);
+    }
+  }
+
   async function addProfessional(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -614,7 +667,7 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
   const tabs = [{ id: "overview", label: "Overview" }, { id: "pending", label: `Pending${overview?.stats.pendingApprovals ? ` · ${overview.stats.pendingApprovals}` : ""}` }, { id: "approved", label: "Approved" }, { id: "rejected", label: "Rejected" }, { id: "categories", label: "Categories" }, { id: "users", label: "Users" }, { id: "bookings", label: "All bookings" }, { id: "profile", label: "My profile" }] as const;
   return <>
     {error && <p className="inline-error">{error}</p>}
-    <div className="admin-tabs">{tabs.map((item) => <button className={tab === item.id ? "admin-tab selected" : "admin-tab"} key={item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}<button className="button button-outline tab-refresh" onClick={onRefresh}><RefreshCw size={14} /> Refresh</button></div>
+    <div className="admin-tabs">{tabs.map((item) => <button className={tab === item.id ? "admin-tab selected" : "admin-tab"} key={item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}<button className="button button-dark" onClick={() => { setShowCreateProfessional(true); setTab("users"); }}>Create professional</button><button className="button button-outline tab-refresh" onClick={onRefresh}><RefreshCw size={14} /> Refresh</button></div>
     {tab === "overview" && <>
       <section className="admin-welcome"><div><p className="eyebrow">A GOOD DAY TO GET THINGS DONE</p><h2>The whole picture.</h2><span>Here’s what’s happening across your neighbourhood.</span></div><div className="admin-welcome-art"><SparkleIcon /></div></section>
       <div className="metric-row admin-metrics"><Metric icon={Users} label="Customers" value={overview?.stats.customers ?? "—"} foot="Registered households" onClick={() => { setUserRole("customer"); setTab("users"); }} /><Metric icon={BriefcaseBusiness} label="Live professionals" value={overview?.stats.professionals ?? "—"} foot="Approved service pros" onClick={() => setTab("approved")} /><Metric icon={ShieldCheck} label="Needs your review" value={overview?.stats.pendingApprovals ?? "—"} foot={`${overview?.stats.pendingDocuments ?? 0} documents pending`} onClick={() => setTab("pending")} /><Metric icon={ClipboardList} label="Total bookings" value={overview?.stats.bookings ?? "—"} foot="Marketplace requests" onClick={() => setTab("bookings")} /><Metric icon={CircleDollarSign} label="Payments received" value={`₹${formatPrice(overview?.stats.paymentsReceived ?? 0)}`} foot={`${overview?.stats.paymentsReceivedCount ?? 0} captured bookings`} onClick={() => setTab("bookings")} /></div>
@@ -682,7 +735,17 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
           </div>
           <button className="button button-dark" disabled={savingCategory}>{savingCategory ? "Adding…" : "Add category"}</button>
         </form>
-        {categories.length ? <div className="admin-pro-list">{categories.map((category) => <article className="admin-pro-item" key={category.name}><span className="mini-avatar">{category.name[0]}</span><div className="admin-pro-info"><strong>{category.name}</strong><span>Signup label: {category.label}</span></div></article>)}</div> : <EmptyState title="No categories yet." text="Add a service category to make it available to professionals." />}
+        {categories.length ? <div className="admin-pro-list">{categories.map((category) => <article className="admin-pro-item" key={category.name}>
+          <span className="mini-avatar">{category.name[0]}</span>
+          <div className="admin-pro-info"><strong>{category.name}</strong><span>Signup label: {category.label}</span></div>
+          <form className="category-price-form" onSubmit={(event) => void updateCategoryPrice(event, category.name)}>
+            <label>Price (₹)<input key={`${category.name}-${category.price}`} name="price" type="number" min={1} max={1000000} step="1" defaultValue={category.price} required /></label>
+            <button className="button button-dark" disabled={savingCategoryPrice === category.name || deletingCategory === category.name}>{savingCategoryPrice === category.name ? "Saving…" : "Save price"}</button>
+          </form>
+          <button className="button button-outline danger-button" disabled={deletingCategory === category.name || savingCategoryPrice === category.name} onClick={() => void deleteCategory(category.name)}>
+            {deletingCategory === category.name ? "Deleting…" : "Delete"}
+          </button>
+        </article>)}</div> : <EmptyState title="No categories yet." text="Add a service category to make it available to professionals." />}
       </section>
     </>}
     {tab === "users" && <section className="dash-panel">
@@ -690,13 +753,13 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
         <div><p className="eyebrow">ACCOUNT MANAGEMENT</p><h2>Customers & professionals</h2></div>
         <div className="panel-actions">
           <label className="select-filter">Role<select value={userRole} onChange={(event) => setUserRole(event.target.value as "all" | "customer" | "worker")}><option value="all">Everyone</option><option value="customer">Customers</option><option value="worker">Professionals</option></select><ChevronDown size={14} /></label>
-          <button className="button button-dark" onClick={() => setShowCreateProfessional(!showCreateProfessional)}>{showCreateProfessional ? "Close form" : "Create user"}</button>
+          <button className="button button-dark" onClick={() => setShowCreateProfessional(!showCreateProfessional)}>{showCreateProfessional ? "Close form" : "Create professional"}</button>
         </div>
       </div>
       {showCreateProfessional && <div className="user-create-form">
         <p className="eyebrow">PROFESSIONAL ONBOARDING</p>
-        <h3>Create a provider account</h3>
-        <p>This creates the provider login and a pending professional listing. The provider can sign in after creation; the listing appears on the marketplace after approval.</p>
+        <h3>Create a professional account</h3>
+        <p>This creates the professional login and a pending listing. The professional can sign in after creation; the listing appears on the marketplace after approval.</p>
         <form className="profile-form" onSubmit={addProfessional}>
           <div className="form-grid-two">
             <label>Provider name<input name="name" required minLength={2} maxLength={80} /></label>
@@ -704,7 +767,7 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
           </div>
           <div className="form-grid-two">
             <label>Service provided<input name="profession" required minLength={2} maxLength={80} placeholder="e.g. AC repair technician" /></label>
-            <label>Service category<select name="category" required defaultValue="" disabled={categories.length === 0}><option value="" disabled>{categories.length ? "Choose a category" : "Loading categories…"}</option>{categories.map(({ name, label }) => <option key={name} value={name}>{label}</option>)}</select></label>
+            <label>Service category<select name="category" required defaultValue="" disabled={categoriesLoading || categories.length === 0}><option value="" disabled>{categoriesLoading ? "Loading categories…" : categories.length ? "Choose a category" : "No categories available"}</option>{categories.map(({ name, label }) => <option key={name} value={name}>{label}</option>)}</select></label>
           </div>
           <div className="form-grid-two">
             <label>Email for login<input name="email" type="email" required maxLength={254} /></label>
@@ -714,7 +777,7 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
             <label>Hourly rate (₹)<input name="price" type="number" required min={1} max={1000000} /></label>
             <label>Temporary password<input name="password" type="password" required minLength={8} maxLength={72} /></label>
           </div>
-          <button className="button button-dark" disabled={savingProfessional}>{savingProfessional ? "Creating…" : "Create provider account"}</button>
+          <button className="button button-dark" disabled={savingProfessional || categoriesLoading || categories.length === 0}>{savingProfessional ? "Creating…" : "Create professional account"}</button>
         </form>
       </div>}
       {usersLoading ? <LoadingLine /> : users.length ? <div className="admin-pro-list">{users.map((account) => <article className="admin-pro-item" key={account._id}>

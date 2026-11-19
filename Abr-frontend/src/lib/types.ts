@@ -3,6 +3,7 @@ export type Role = "customer" | "worker" | "admin";
 export interface ServiceCategory {
   name: string;
   label: string;
+  price: number;
 }
 
 export interface VerificationDocument {
