@@ -36,3 +36,11 @@ deployed or publicly reachable HTTPS backend is required for Razorpay to deliver
 webhooks; checkout verification itself works without a webhook during local
 development. Keep all secrets out of source control and use test credentials
 until the integration has been verified.
+
+## WhatsApp support bridge
+
+The support bridge forwards new website chat messages to `WHATSAPP_SUPPORT_NUMBER` in international digits. Configure the Cloud API sender in `.env` with `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, and a private `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. The receiving number must be separate from the Cloud API sender and opted in to receive alerts.
+
+Set `WHATSAPP_SUPPORT_TEMPLATE` to an approved template with one positional text parameter in the body and set its language in `WHATSAPP_TEMPLATE_LANGUAGE`. For example, submit a body such as “New website support message: {{1}}. Reply directly to this message to answer the customer.” WhatsApp gets a preview of up to 700 characters. The website keeps the full message.
+
+In the Meta app, subscribe to the `messages` webhook at `https://<public-host>/api/support/whatsapp/webhook`. Route that path directly to Express so it receives the original request body and Meta signature header. Use the same verify token in Meta and the backend, then restart the backend after configuration. Reply using WhatsApp’s quoted **Reply** action on the notification. The backend matches that notification to the website conversation. Text replies appear in the customer chat and admin inbox. Existing messages stay in the website inbox and new messages are forwarded once the bridge is enabled.

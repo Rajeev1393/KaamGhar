@@ -1,14 +1,24 @@
 "use client";
 
+import { LanguageChooser, useTranslation } from "@/components/LanguageProvider";
+
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api, formatDate, formatPrice } from "@/lib/api";
 import type { Booking, BookingStatus, User, Worker } from "@/lib/types";
-import { ProviderSignup, ProviderDocuments } from "./ProviderOnboarding";
+import { ProviderSignup, ProviderDocuments, documentLabels } from "./ProviderOnboarding";
 
-type BookingFilter = "all" | "pending" | "confirmed" | "completed";
+const bookingFilters = [
+  { value: "all", tab: "All", label: "Total bookings", detail: "Assigned to you" },
+  { value: "pending", tab: "Pending", label: "Needs a reply", detail: "Waiting for your response" },
+  { value: "confirmed", tab: "Confirmed", label: "Confirmed", detail: "Upcoming jobs" },
+  { value: "completed", tab: "Completed", label: "Completed", detail: "Finished jobs" },
+] as const;
+
+type BookingFilter = (typeof bookingFilters)[number]["value"];
 
 export default function ProviderPage() {
+  const { t, language, locale } = useTranslation();
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [email, setEmail] = useState("");
@@ -23,6 +33,7 @@ export default function ProviderPage() {
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState("");
   const [busyBooking, setBusyBooking] = useState<string | null>(null);
+  const bookingsHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     api<{ user: User }>("auth/me")
@@ -61,13 +72,23 @@ export default function ProviderPage() {
   }, [loadWorkspace]);
 
   const counts = useMemo(() => ({
-    total: bookings.length,
+    all: bookings.length,
     pending: bookings.filter((booking) => booking.status === "pending").length,
     confirmed: bookings.filter((booking) => booking.status === "confirmed").length,
     completed: bookings.filter((booking) => booking.status === "completed").length,
   }), [bookings]);
 
   const visibleBookings = bookings.filter((booking) => filter === "all" || booking.status === filter);
+
+  function openBookings(nextFilter: BookingFilter) {
+    setFilter(nextFilter);
+    bookingsHeading.current?.focus({ preventScroll: true });
+    bookingsHeading.current?.scrollIntoView({ block: "start" });
+  }
+
+  function statusLabel(status: string) {
+    return language === "en" ? status : t(status.charAt(0).toUpperCase() + status.slice(1));
+  }
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -119,7 +140,7 @@ export default function ProviderPage() {
   }
 
   if (checkingSession) {
-    return <main className="loading-screen"><span className="spinner" /> Checking provider account…</main>;
+    return <main className="loading-screen"><span className="spinner" />{" "}{t("Checking provider account…")}</main>;
   }
 
   if (!user) {
@@ -133,19 +154,22 @@ export default function ProviderPage() {
     return (
       <main className="login-page">
         <section className="login-card">
-          <a className="brand" href="/">kaam<span>ghar</span></a>
-          <p className="eyebrow">SERVICE PROVIDER PORTAL</p>
-          <h1>Welcome back.</h1>
-          <p className="intro">Sign in to see bookings assigned to your professional profile.</p>
+          <div className="login-heading">
+            <a className="brand" href="/">kaam<span>ghar</span></a>
+            <LanguageChooser />
+          </div>
+          <p className="eyebrow">{t("SERVICE PROVIDER PORTAL")}</p>
+          <h1>{t("Welcome back.")}</h1>
+          <p className="intro">{t("Sign in to see bookings assigned to your professional profile.")}</p>
           <form onSubmit={signIn}>
-            <label>Email address<input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-            <label>Password<input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-            <Link href="/api/auth/password-reset?portal=provider" prefetch={false}>Forgot password?</Link>
-            {loginError && <p className="error-message" role="alert">{loginError}</p>}
-            <button className="primary-button" disabled={submitting}>{submitting ? "Signing in…" : "Sign in to provider portal"} <span aria-hidden="true">→</span></button>
+            <label>{t("Email address")}<input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+            <label>{t("Password")}<input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+            <Link href="/api/auth/password-reset?portal=provider" prefetch={false}>{t("Forgot password?")}</Link>
+            {loginError && <p className="error-message" role="alert">{t(loginError)}</p>}
+            <button className="primary-button" disabled={submitting}>{submitting ? t("Signing in…") : t("Sign in to provider portal")} <span aria-hidden="true">→</span></button>
           </form>
-          <button className="back-link auth-switch" type="button" onClick={() => setShowSignup(true)}>Create a provider account</button>
-          <a className="back-link" href="http://localhost:3001/">← Back to KaamGhar</a>
+          <button className="back-link auth-switch" type="button" onClick={() => setShowSignup(true)}>{t("Create a provider account")}</button>
+          <a className="back-link" href="http://localhost:3001/">{t("← Back to KaamGhar")}</a>
         </section>
       </main>
     );
@@ -155,31 +179,35 @@ export default function ProviderPage() {
     <main className="workspace">
       <header className="topbar">
         <a className="brand" href="/">kaam<span>ghar</span></a>
+        <LanguageChooser />
         <div className="account">
           <span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span>
-          <div><strong>{user.name}</strong><small>Service provider</small></div>
-          <button className="signout-button" onClick={() => void signOut()}>Sign out</button>
+          <div><strong>{user.name}</strong><small>{t("Service provider")}</small></div>
+          <button className="signout-button" onClick={() => void signOut()}>{t("Sign out")}</button>
         </div>
       </header>
 
       <section className="welcome">
         <div>
-          <p className="eyebrow">YOUR PROVIDER WORKSPACE</p>
-          <h1>Good to see you, {user.name.split(" ")[0]}.</h1>
-          <p>Review your service requests and keep your work moving.</p>
+          <p className="eyebrow">{t("YOUR PROVIDER WORKSPACE")}</p>
+          <h1>{t("Good to see you, {name}.", { name: user.name.split(" ")[0] })}</h1>
+          <p>{t("Review your service requests and keep your work moving.")}</p>
         </div>
-        <button className="refresh-button" onClick={() => void loadWorkspace()} disabled={loadingData}>↻ Refresh bookings</button>
+        <button className="refresh-button" onClick={() => void loadWorkspace()} disabled={loadingData}>{t("↻ Refresh bookings")}</button>
       </section>
 
       {worker && worker.approvalStatus !== "approved" && (
         <div className="review-notice">
-          <strong>Profile {worker.approvalStatus === "pending" ? "under review" : "not approved"}</strong>
-          <span>{worker.approvalStatus === "pending" ? "Your listing will be available to customers after admin approval." : "Contact support if you need help with your profile."}</span>
+          <strong>{t(worker.approvalStatus === "pending" ? "Profile under review" : "Profile not approved")}</strong>
+          <span>{worker.approvalStatus === "pending" ? t("Your listing will be available to customers after admin approval.") : t("Contact support if you need help with your profile.")}</span>
         </div>
       )}
-      {dataError && <p className="error-message workspace-error" role="alert">{dataError}</p>}
+      {dataError && <p className="error-message workspace-error" role="alert">{t(dataError)}</p>}
       {worker && worker.approvalStatus !== "approved" && Object.keys(failedSignupUploads).length > 0 && <p className="error-message workspace-error" role="alert">
-        Account created. Upload these documents again below: {Object.values(failedSignupUploads).join(", ")}
+        {t("Account created. Upload these documents again below: {documents}", {
+          documents: Object.entries(failedSignupUploads)
+            .map(([type, reason]) => `${t(documentLabels[type] ?? type)} (${t(reason)})`).join(", "),
+        })}
       </p>}
 
       {worker && worker.approvalStatus !== "approved" && <ProviderDocuments
@@ -190,50 +218,51 @@ export default function ProviderPage() {
           : profile);
       }} />}
 
-      <section className="metrics" aria-label="Booking summary">
-        <article><span>Total bookings</span><strong>{counts.total}</strong><small>Assigned to you</small></article>
-        <article><span>Needs a reply</span><strong>{counts.pending}</strong><small>Waiting for your response</small></article>
-        <article><span>Confirmed</span><strong>{counts.confirmed}</strong><small>Upcoming jobs</small></article>
-        <article><span>Completed</span><strong>{counts.completed}</strong><small>Finished jobs</small></article>
+      <section className="metrics" aria-label={t("Booking summary")}>
+        {bookingFilters.map(({ value, label, detail }) => (
+          <button key={value} type="button" aria-pressed={filter === value} aria-controls="provider-bookings" onClick={() => openBookings(value)}>
+            <span>{t(label)}</span><strong>{counts[value]}</strong><small>{t(detail)}</small>
+          </button>
+        ))}
       </section>
 
-      <section className="booking-panel">
+      <section className="booking-panel" id="provider-bookings" aria-labelledby="provider-bookings-heading">
         <div className="panel-heading">
-          <div><p className="eyebrow">YOUR BOOKINGS</p><h2>Service requests</h2></div>
-          {worker && <span className={`profile-status ${worker.approvalStatus}`}>{worker.approvalStatus}</span>}
+          <div><p className="eyebrow">{t("YOUR BOOKINGS")}</p><h2 id="provider-bookings-heading" ref={bookingsHeading} tabIndex={-1}>{t("Service requests")}</h2></div>
+          {worker && <span className={`profile-status ${worker.approvalStatus}`}>{statusLabel(worker.approvalStatus)}</span>}
         </div>
-        <div className="filters" aria-label="Filter bookings">
-          {(["all", "pending", "confirmed", "completed"] as BookingFilter[]).map((value) => (
-            <button key={value} className={filter === value ? "selected" : ""} onClick={() => setFilter(value)}>
-              {value === "all" ? "All" : value[0].toUpperCase() + value.slice(1)}
+        <div className="filters" aria-label={t("Filter bookings")}>
+          {bookingFilters.map(({ value, tab }) => (
+            <button key={value} type="button" aria-pressed={filter === value} className={filter === value ? "selected" : ""} onClick={() => setFilter(value)}>
+              {t(tab)}
             </button>
           ))}
         </div>
-        {loadingData ? <div className="empty-state"><span className="spinner" /> Loading bookings…</div> : visibleBookings.length ? (
+        {loadingData ? <div className="empty-state"><span className="spinner" />{" "}{t("Loading bookings…")}</div> : visibleBookings.length ? (
           <div className="booking-list">
             {visibleBookings.map((booking) => (
               <article className="booking-card" key={booking._id}>
                 <div className="booking-main">
                   <div className="booking-heading">
-                    <div><p className="eyebrow">CUSTOMER</p><h3>{booking.customer?.name || booking.customerName}</h3></div>
-                    <span className={`status ${booking.status}`}>{booking.status}</span>
+                    <div><p className="eyebrow">{t("CUSTOMER")}</p><h3>{booking.customer?.name || booking.customerName}</h3></div>
+                    <span className={`status ${booking.status}`}>{statusLabel(booking.status)}</span>
                   </div>
                   <div className="booking-details">
-                    <p><strong>When</strong>{formatDate(booking.scheduledAt)} · {booking.durationHours || 1} hr</p>
-                    <p><strong>Address</strong>{booking.address}</p>
-                    <p><strong>Contact</strong>{booking.customer?.phone || booking.phone}</p>
-                    <p><strong>Notes</strong>{booking.notes || "No extra details"}</p>
+                    <p><strong>{t("When")}</strong>{t(formatDate(booking.scheduledAt, locale))} · {t("{count} hr", { count: booking.durationHours || 1 })}</p>
+                    <p><strong>{t("Address")}</strong>{booking.address}</p>
+                    <p><strong>{t("Contact")}</strong>{booking.customer?.phone || booking.phone}</p>
+                    <p><strong>{t("Notes")}</strong>{booking.notes || t("No extra details")}</p>
                   </div>
                   <div className="booking-footer">
                     <strong className="amount">₹{formatPrice(booking.totalAmount || 0)}</strong>
                     <div className="booking-actions">
                       {booking.status === "pending" && <>
-                        <button className="primary-button small" disabled={busyBooking === booking._id} onClick={() => void updateBooking(booking._id, "confirmed")}>Accept job</button>
-                        <button className="secondary-button danger" disabled={busyBooking === booking._id} onClick={() => void updateBooking(booking._id, "cancelled")}>Decline</button>
+                        <button className="primary-button small" disabled={busyBooking === booking._id} onClick={() => void updateBooking(booking._id, "confirmed")}>{t("Accept job")}</button>
+                        <button className="secondary-button danger" disabled={busyBooking === booking._id} onClick={() => void updateBooking(booking._id, "cancelled")}>{t("Decline")}</button>
                       </>}
                       {booking.status === "confirmed" && <>
-                        <button className="primary-button small" disabled={busyBooking === booking._id} onClick={() => void updateBooking(booking._id, "completed")}>Mark complete</button>
-                        <button className="secondary-button danger" disabled={busyBooking === booking._id} onClick={() => void updateBooking(booking._id, "cancelled")}>Cancel</button>
+                        <button className="primary-button small" disabled={busyBooking === booking._id} onClick={() => void updateBooking(booking._id, "completed")}>{t("Mark complete")}</button>
+                        <button className="secondary-button danger" disabled={busyBooking === booking._id} onClick={() => void updateBooking(booking._id, "cancelled")}>{t("Cancel")}</button>
                       </>}
                     </div>
                   </div>
@@ -242,10 +271,10 @@ export default function ProviderPage() {
             ))}
           </div>
         ) : (
-          <div className="empty-state"><strong>No bookings in this view.</strong><span>New requests assigned to your profile will appear here.</span></div>
+          <div className="empty-state"><strong>{t("No bookings in this view.")}</strong><span>{t("New requests assigned to your profile will appear here.")}</span></div>
         )}
       </section>
-      <footer className="footer-note">Your bookings are private to your provider account.</footer>
+      <footer className="footer-note">{t("Your bookings are private to your provider account.")}</footer>
     </main>
   );
 }

@@ -1,5 +1,5 @@
-import Dashboard from "@/components/Dashboard";
+import CustomerDashboard from "@/modules/customer/CustomerDashboard";
 
 export default function CustomerPage() {
-  return <Dashboard expectedRole="customer" />;
+  return <div className="customer-theme"><CustomerDashboard /></div>;
 }

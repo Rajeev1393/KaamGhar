@@ -1,0 +1,114 @@
+:root:has(.customer-theme) {
+  color-scheme: light;
+  --ink: light-dark(#202a25, #edf3ef);
+  --ink-soft: light-dark(#445047, #cedbd2);
+  --muted: light-dark(#849087, #aabbb0);
+  --muted-dark: light-dark(#6d786f, #b9c9bf);
+  --green: light-dark(#276b4f, #99d8b3);
+  --green-dark: light-dark(#194b38, #bde7cc);
+  --green-deep: light-dark(#173c2e, #d4efde);
+  --mint: light-dark(#e8efe7, #293e33);
+  --paper: light-dark(#fbfaf6, #151e19);
+  --white: light-dark(#fffefa, #202d25);
+  --line: light-dark(#e8e8df, #415548);
+}
+
+:root[data-theme="dark"]:has(.customer-theme) { color-scheme: dark; }
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"]:has(.customer-theme) { color-scheme: dark; }
+}
+
+.customer-theme :is(.hero-section, .auth-left, .dash-welcome, .trust-ribbon) {
+  background: light-dark(#eaf0e8, #21372b);
+}
+
+.customer-theme .story-section { background: light-dark(#f7f4eb, #272b22); }
+.customer-theme .join-section { background: light-dark(#dfeadf, #253e30); }
+.customer-theme .dashboard-layout { background: light-dark(#f4f4ef, #18221c); }
+
+.customer-theme :is(.category-card, .pro-card, .metric-card, .dash-panel) {
+  background: var(--white);
+  border-color: var(--line);
+}
+
+.customer-theme :is(
+  .search-bar, .float-card, .header-account, .button-outline, .mini-pro-card,
+  .logout-icon, .dash-mobile-menu, .modal-close, .role-option, .auth-art-card,
+  .auth-form input, .auth-form select, .auth-form textarea, .auth-mode-tabs button.selected,
+  .profile-form input, .profile-form textarea, .modal-form input, .modal-form textarea, .modal-form select
+) {
+  background: light-dark(#fff, #223128);
+  border-color: light-dark(#e1e4dc, #486051);
+}
+
+.customer-theme :is(.search-separator, .city-query, .booking-item, .sidebar-help, .dash-welcome, .booking-modal) {
+  border-color: var(--line);
+}
+
+.customer-theme :is(.sidebar-help, .role-active, .category-card:hover, .category-active, .dash-nav-link:hover, .dash-nav-link.active, .auth-mode-tabs, .location-button) {
+  background: light-dark(#f3f7f1, #293c31);
+}
+
+.customer-theme :is(.hero-sun, .auth-sun) { background: light-dark(#d7e2d4, #2e4f3b); }
+.customer-theme .auth-home { background: light-dark(#f7f3e8, #223128); }
+.customer-theme .worker-register-fields { background: light-dark(#f2f4ee, #26362d); }
+.customer-theme :is(.welcome-orb, .metric-icon, .booking-item-icon, .empty-state-icon, .sidebar-help-icon, .trust-ribbon-icon, .float-icon, .auth-art-card > span) {
+  background: light-dark(#e9f0e7, #324c3c);
+  color: var(--green);
+}
+
+.customer-theme :is(.category-card, .float-card strong, .booking-item-main strong, .booking-item-price) {
+  color: var(--ink-soft);
+}
+
+.customer-theme :is(
+  .site-nav, .hero-description, .hero-location, .hero-scroll, .hero-social-proof p,
+  .section-heading > p, .pro-title, .pro-meta, .filter-line, .float-card small,
+  .story-copy > p:not(.eyebrow), .story-stat span, .join-section p,
+  .site-footer, .auth-intro, .auth-form label, .modal-form label, .modal-intro,
+  .auth-left-copy > p:last-child, .auth-left-foot, .auth-art-card small, .auth-mode-tabs button:not(.selected),
+  .auth-copyright, .back-home-link, .dash-nav-link, .sidebar-back, .sidebar-signout,
+  .dash-welcome p:not(.eyebrow), .dash-user small, .metric-label, .metric-foot, .empty-state p,
+  .booking-item-main > span, .booking-item-main small, .mini-pro-copy small, .mini-pro-copy > span,
+  .optional-text, .modal-form > small
+) {
+  color: light-dark(#6d786f, #b9c9bf);
+}
+
+.customer-theme .role-option { color: var(--muted-dark) !important; }
+.customer-theme .eyebrow { color: light-dark(#748478, #a5bcae); }
+.customer-theme .dash-nav-link.active { color: var(--green); }
+.customer-theme :is(.primary-button, .button-dark, .search-submit, .join-section > a, .brand-symbol, .book-button:hover) {
+  background-color: light-dark(#276b4f, #2b7050);
+}
+.customer-theme :is(.primary-button, .button-dark, .search-submit, .join-section > a):hover {
+  background-color: light-dark(#194b38, #256245);
+}
+
+.customer-theme :is(.inline-error, .dashboard-alert, .error-message) {
+  background: light-dark(#fbefec, #3f2927);
+  border-color: light-dark(#eadbd6, #724942);
+  color: light-dark(#99564d, #f6b6ab);
+}
+
+.customer-theme .booking-item-main .payment-status-error { color: light-dark(#9e5447, #f6b6ab); }
+.customer-theme .booking-item-main .payment-status-paid { color: var(--green); }
+.customer-theme .auth-message { color: light-dark(#a44c41, #f6b6ab); }
+.customer-theme :is(.category-icon, .booking-icon, .pro-portrait, .story-mark, .status-pill) { color-scheme: light; }
+
+.customer-theme .auth-language { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
+@media (max-width: 680px) {
+  .customer-theme .site-header {
+    min-height: 104px;
+    height: auto;
+    flex-wrap: wrap;
+    align-content: center;
+    row-gap: 6px;
+    padding-block: 8px;
+  }
+  .customer-theme .header-language-actions { flex-basis: 100%; justify-content: flex-end; }
+  .customer-theme .site-nav { top: 100%; }
+  .customer-theme .dash-account-actions { flex-wrap: wrap; }
+}

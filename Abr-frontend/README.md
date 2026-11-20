@@ -24,18 +24,30 @@ npm install
 npm run dev
 ```
 
-Open the public marketplace at [http://localhost:3001](http://localhost:3001). The dedicated admin console is [http://localhost:3001/admin](http://localhost:3001/admin), with admin sign-in at [http://localhost:3001/admin/login](http://localhost:3001/admin/login). Set `BACKEND_URL` in `.env.local` to the Express API address; this workspace uses `http://localhost:4000`.
+Open the public marketplace at [http://localhost:3001](http://localhost:3001), the [customer dashboard](http://localhost:3001/customer), the [provider portal](http://localhost:3001/provider), or [admin sign-in](http://localhost:3001/admin/login). Set `BACKEND_URL` in `.env.local` to the Express API address, which is `http://localhost:4000` in this workspace.
 
 ## Web pages
 
 - `/` — service discovery, browser-geolocation city detection, category/search filters, hourly professional cards, rating/review counts, and booking entry point
 - `/login` — sign in, customer registration, and professional onboarding with city detection and an hourly rate
 - `/customer` — customer booking history, cancellation, and professional discovery
-- `/worker` — service requests, booking actions, listing availability, and profile editor
+- `/provider` — provider sign-in, booking dashboard, status filters and booking actions
+- `/provider?mode=register` — provider registration with optional verification documents
+- `/provider/profile` — profile editor, listing availability, earnings, and verification documents. Legacy `/worker` links redirect here.
 - `/admin/login` — separate admin sign-in URL
 - `/admin` — private admin console for verification, users, and bookings
 
 In the admin console, use **Categories** to add service types and register an employee with their name, location, service, hourly rate, and login details. New listings appear under **Professionals → Awaiting review** and stay out of **Users** until approved. Rejected profiles appear in the separate **Rejected** tab.
+
+## Module boundaries
+
+| Module | Source | Routes |
+| --- | --- | --- |
+| Customer | `src/modules/customer` | `/`, `/login`, `/customer` |
+| Provider | `src/modules/provider` | `/provider`, `/provider/profile` |
+| Admin | `src/modules/admin` | `/admin`, `/admin/login` |
+
+The route files in `src/app` compose module entry points. Modules use shared components and backend contracts from `src/components` and `src/lib`. The provider portal keeps its stylesheet and provider-specific translations with its module. To deploy a module separately later, take its routes and the shared dependencies it imports, configure its same-origin API proxy, and update cross-module navigation URLs for the new hosts.
 
 ## API integration
 
@@ -48,7 +60,7 @@ All browser requests use `/api/*`; `src/app/api/[...path]/route.ts` forwards the
 - `/api/admin/categories` (GET, POST), `/api/admin/overview`, `/api/admin/professionals` (GET, POST), `/api/admin/professionals/:id/status`
 - `/api/admin/professionals/:id/documents/:documentId`, `/api/admin/users`, `/api/admin/users/:id/status`
 
-Professional verification documents are uploaded from the `/worker` profile and stored outside the public directory. Only administrators can view and review them. Documents are limited to PDF/JPG/PNG, 5 MB each, and 10 per profile. Documents are optional; if any are uploaded, every document must be verified before the professional can be approved. The admin can also view customer/professional accounts and deactivate or reactivate them.
+Providers can upload verification documents during registration or from their portal and profile. Files are stored outside the public directory. Only administrators can view and review uploaded files. Documents are limited to PDF/JPG/PNG, 5 MB each, and 10 per profile. Documents are optional; if any are uploaded, every document must be verified before the professional can be approved. The admin can also view customer/professional accounts and deactivate or reactivate them.
 
 Location lookup requires a user click and browser geolocation permission. Coordinates are sent to the frontend's reverse-lookup route and OpenStreetMap Nominatim to resolve a city; only the resulting city is used to search the marketplace. The location button explains this to the user. Booking requests select 1–12 hours and the backend calculates the total from the professional's saved hourly rate.
 

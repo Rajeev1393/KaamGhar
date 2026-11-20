@@ -29,7 +29,8 @@ async function proxy(request: NextRequest) {
         if (value) responseHeaders.set(name, value);
       }
     }
-    if (/^admin\/professionals\/[^/]+\/documents\/[^/]+\/file$/.test(path)) {
+    if (/^admin\/professionals\/[^/]+\/documents\/[^/]+\/file$/.test(path) ||
+        /^(?:admin\/support\/[^/]+|support)\/[^/]+\/attachment$/.test(path)) {
       for (const name of ["cache-control", "content-disposition", "x-content-type-options"]) {
         const value = upstream.headers.get(name);
         if (value) responseHeaders.set(name, value);

@@ -23,7 +23,35 @@ a { color: inherit; text-decoration: none; }
 
 .login-page { min-height: 100vh; padding: 28px; display: grid; place-items: center; background: radial-gradient(circle at 15% 15%, #e5eee4, transparent 34%), #f7f8f5; }
 .login-card { width: min(100%, 470px); padding: 42px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: 0 20px 60px #203b2d0b; }
-.login-card > .brand { margin-bottom: 48px; }
+.login-heading, .login-language {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.login-heading { flex-wrap: wrap; justify-content: space-between; margin-bottom: 36px; }
+.login-language { justify-content: flex-end; margin-bottom: 14px; }
+.language-chooser {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  max-width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+  color: var(--green-dark);
+  font-size: 12px;
+}
+.language-chooser select {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
 .login-card h1 { margin: 12px 0 8px; font-size: 36px; letter-spacing: -1.8px; }
 .intro { margin: 0 0 27px; color: var(--muted); font-size: 14px; line-height: 1.6; }
 .login-card form { display: grid; gap: 18px; }
@@ -68,7 +96,10 @@ a { color: inherit; text-decoration: none; }
 .review-notice span { color: #8a7551; }
 .workspace-error { margin: 0 0 14px; }
 .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.metrics article { min-height: 121px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.metrics button { min-height: 121px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); text-align: left; }
+.metrics button:hover, .metrics button[aria-pressed="true"] { border-color: #93b3a0; background: #f3f8f4; }
+.metrics button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+#provider-bookings-heading { scroll-margin-top: 20px; }
 .metrics span, .metrics small { display: block; color: var(--muted); font-size: 11px; }
 .metrics strong { display: block; margin: 12px 0 4px; font-size: 27px; letter-spacing: -1px; }
 .booking-panel { margin-top: 18px; padding: 22px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
@@ -100,6 +131,8 @@ a { color: inherit; text-decoration: none; }
 .footer-note { padding-top: 18px; color: #879189; font-size: 10px; text-align: center; }
 
 @media (max-width: 700px) {
+  .topbar { flex-wrap: wrap; gap: 8px 12px; padding: 10px 0; }
+  .topbar .account { margin-left: auto; }
   .workspace { width: min(100% - 28px, 560px); }
   .welcome { align-items: flex-start; flex-direction: column; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }

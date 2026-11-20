@@ -1,5 +1,5 @@
-import Dashboard from "@/components/Dashboard";
+import { redirect } from "next/navigation";
 
 export default function WorkerPage() {
-  return <Dashboard expectedRole="worker" />;
+  redirect("/provider/profile");
 }

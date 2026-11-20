@@ -21,17 +21,18 @@ const parser = multer({
   }
 }).single("document");
 
-function uploadWorkerDocument(req, res, next) {
+function parseDocument(req, res, next, label) {
   parser(req, res, (error) => {
     if (!error) return next();
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
-      return next(httpError(413, "Each verification document must be 5 MB or smaller."));
+      return next(httpError(413, `Each ${label} must be 5 MB or smaller.`));
     }
     if (error instanceof multer.MulterError) {
-      return next(httpError(400, "Upload one verification document at a time."));
+      return next(httpError(400, `Upload one ${label} at a time.`));
     }
     return next(httpError(400, error.message));
   });
 }
 
-module.exports = uploadWorkerDocument;
+module.exports = (req, res, next) => parseDocument(req, res, next, "verification document");
+module.exports.uploadSupportDocument = (req, res, next) => parseDocument(req, res, next, "chat attachment");

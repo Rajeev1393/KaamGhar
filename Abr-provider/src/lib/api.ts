@@ -23,10 +23,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   return payload as T;
 }
 
-export function formatDate(value: string) {
+export function formatDate(value: string, locale = "en-IN") {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Date not set";
-  return new Intl.DateTimeFormat("en-IN", {
+  return new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "short",
     year: "numeric",

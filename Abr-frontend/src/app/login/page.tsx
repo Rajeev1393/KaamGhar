@@ -6,5 +6,5 @@ export default async function LoginPage({
   searchParams: Promise<{ mode?: string; role?: string }>;
 }) {
   const query = await searchParams;
-  return <AuthForm initialMode={query.mode === "register" || query.role ? "register" : "login"} initialRole={query.role === "worker" ? "worker" : "customer"} />;
+  return <div className="customer-theme"><AuthForm showThemeChooser initialMode={query.mode === "register" || query.role ? "register" : "login"} initialRole={query.role === "worker" ? "worker" : "customer"} /></div>;
 }

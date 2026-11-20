@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslation } from "@/components/LanguageProvider";
+
 import { LoaderCircle, MapPin, LocateFixed } from "lucide-react";
 import { useState } from "react";
 
@@ -9,6 +11,7 @@ type Props = {
 };
 
 export default function DetectCityButton({ onCity, compact = false }: Props) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -58,11 +61,11 @@ export default function DetectCityButton({ onCity, compact = false }: Props) {
         type="button"
         onClick={detectCity}
         disabled={loading}
-        aria-label="Detect my city using my device location"
-        title="Use device location to find your city"
+        aria-label={t("Detect my city using my device location")}
+        title={t("Use device location to find your city")}
       >
         {loading ? <LoaderCircle className="spin-icon" size={15} /> : compact ? <LocateFixed size={15} /> : <MapPin size={15} />}
-        <span>{loading ? "Finding…" : compact ? "Use my location" : "Use current location"}</span>
+        <span>{loading ? t("Finding…") : compact ? t("Use my location") : t("Use current location")}</span>
       </button>
       {message && <span className="location-message" role="status">{message}</span>}
     </span>

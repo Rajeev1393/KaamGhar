@@ -1,5 +1,5 @@
-import Marketplace from "@/components/Marketplace";
+import Marketplace from "@/modules/customer/Marketplace";
 
 export default function HomePage() {
-  return <Marketplace />;
+  return <div className="customer-theme"><Marketplace /></div>;
 }

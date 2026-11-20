@@ -3,6 +3,8 @@ require("dotenv").config();
 const mongoose = require("mongoose");
 const app = require("./src/app");
 const ServiceCategory = require("./src/models/ServiceCategory");
+const SupportMessage = require("./src/models/SupportMessage");
+const { startDelivery } = require("./src/utils/supportWhatsApp");
 const {
   serviceCategories: defaultServiceCategories,
   setServiceCategories
@@ -34,6 +36,8 @@ async function start() {
   await ServiceCategory.updateMany({ active: { $exists: false } }, { $set: { active: true } });
   const categories = await ServiceCategory.find({ active: true }).select("name label price commission").sort({ name: 1 }).lean();
   setServiceCategories(categories);
+  await SupportMessage.init();
+  startDelivery();
   app.listen(port, () => {
     console.log(`KaamGhar is running at http://localhost:${port}`);
   });

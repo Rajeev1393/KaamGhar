@@ -155,3 +155,206 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .dash-sidebar { position: fixed; width: min(290px, 85vw); transform: translateX(-105%); transition: transform .2s ease; box-shadow: 15px 0 35px #182b1c15; }.sidebar-open { transform: translateX(0); }.dash-content { margin: 0; padding: 17px 14px 40px; }.dash-mobile-menu { width: 32px; height: 32px; margin-bottom: 9px; display: grid; place-items: center; border: 1px solid #e4e8df; border-radius: 5px; background: white; color: #667368; }.dash-topbar { margin-bottom: 17px; }.dash-heading h1 { font-size: 17px; }.dash-user > div { display: none; }.dash-user { margin-left: auto; }.dash-user .logout-icon { width: 27px; height: 27px; }.dash-welcome { min-height: 139px; padding: 16px; flex-wrap: wrap; gap: 10px; }.welcome-orb { width: 38px; height: 38px; }.dash-welcome h2 { font-size: 15px; }.dash-welcome p:not(.eyebrow) { font-size: 8px; }.dash-welcome .button { margin-left: 48px; }.metric-row { gap: 7px; }.metric-card { min-height: 99px; padding: 10px; }.metric-value { font-size: 18px; }.dash-panel { padding: 14px 12px; }.panel-heading h2 { font-size: 13px; }.booking-item { gap: 8px; }.booking-item-icon { width: 29px; height: 29px; }.booking-item-main small { max-width: 180px; }.mini-pro-grid { grid-template-columns: 1fr; }.admin-tabs { overflow-x: auto; }.admin-tab { padding: 9px 7px; white-space: nowrap; font-size: 8px; }.tab-refresh { flex: none; }.admin-welcome { padding: 15px; }.admin-welcome h2 { font-size: 16px; }.admin-welcome-art { width: 45px; height: 45px; flex: none; }.admin-metrics { grid-template-columns: repeat(2, 1fr); }.admin-pro-item { flex-wrap: wrap; }.admin-pro-info { min-width: calc(100% - 50px); }.admin-pro-actions { width: 100%; padding-left: 44px; flex-wrap: wrap; }.admin-booking-list { overflow-x: auto; }.admin-booking-item { min-width: 680px; }.revenue-card { padding: 11px; }.revenue-note { font-size: 7px; }.booking-modal { padding: 24px 18px; }
 }
 @media (min-width: 1001px) { .admin-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+.admin-booking-controls,
+.admin-booking-pagination,
+.admin-booking-pagination nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-booking-controls {
+  align-items: end;
+  margin: 16px 0;
+}
+
+.admin-booking-controls label {
+  display: grid;
+  gap: 5px;
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.admin-booking-search {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.admin-booking-controls input,
+.admin-booking-controls select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+}
+
+.admin-booking-controls .button,
+.admin-booking-pagination .button {
+  min-height: 36px;
+}
+
+.admin-booking-pagination {
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.admin-booking-controls button:disabled,
+.admin-booking-pagination button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.support-description { margin: 0 0 14px; color: var(--muted-dark); font-size: 13px; }
+.support-conversation { min-width: 0; display: grid; gap: 10px; }
+.support-messages {
+  height: clamp(260px, 48vh, 520px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.support-placeholder { margin: 0; padding: 12px; color: var(--muted-dark); font-size: 13px; }
+.support-message {
+  align-self: flex-start;
+  max-width: min(86%, 54ch);
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  overflow-wrap: anywhere;
+}
+.support-message[data-own="true"] { align-self: flex-end; background: var(--mint); }
+.support-message-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted-dark); font-size: 11px; }
+.support-message-meta strong { color: var(--green); }
+.support-message p { margin: 4px 0 0; color: var(--ink); font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+.support-compose { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.support-attachment, .support-attachment-selection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.support-attachment { margin-top: 6px; color: var(--green); }
+.support-attachment:hover { text-decoration: underline; }
+.support-attachment-size { color: var(--muted-dark); white-space: nowrap; }
+.support-attachment svg, .support-attachment-selection svg { flex: none; }
+.support-attachment-selection { flex-basis: 100%; color: var(--ink-soft); }
+.support-attachment-selection button {
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+}
+.support-compose textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--ink);
+  resize: vertical;
+  font-size: 14px;
+}
+.support-compose button { min-height: 44px; }
+.support-attachment-selection button { min-height: 28px; min-width: 28px; }
+.support-compose button:disabled { opacity: .55; cursor: default; }
+.support-inbox { display: grid; grid-template-columns: minmax(145px, 230px) minmax(0, 1fr); gap: 14px; }
+.support-threads { display: grid; align-content: start; gap: 5px; max-height: 55vh; overflow-y: auto; }
+.support-threads button {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--ink);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.support-threads button[aria-pressed="true"] { border-color: var(--green); background: var(--mint); }
+.support-threads button span { color: var(--muted-dark); font-size: 11px; }
+.support-threads button .support-thread-preview {
+  overflow: hidden;
+  color: var(--ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.support-thread-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between; }
+.support-active-thread { min-width: 0; }
+.support-active-thread h3 { margin: 0 0 8px; font-size: 15px; overflow-wrap: anywhere; }
+
+@media (max-width: 680px) {
+  .support-inbox { grid-template-columns: minmax(0, 1fr); }
+  .support-threads { max-height: 25vh; }
+  .support-compose textarea { flex-basis: 100%; }
+  .support-compose button[type="submit"] { margin-inline-start: auto; }
+}
+
+.language-chooser {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--green);
+}
+
+.language-chooser svg { flex: none; }
+.language-chooser select {
+  min-width: 0;
+  max-width: 130px;
+  min-height: 34px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+
+.header-language-actions,
+.dash-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-language {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+}
+
+@media (max-width: 680px) {
+  .site-header .header-account { display: none; }
+  .site-nav .mobile-sign-in { display: inline-flex; }
+  .dash-topbar { flex-wrap: wrap; }
+  .auth-right { padding-top: 64px; }
+}
+
+@media (min-width: 681px) {
+  .site-nav .mobile-sign-in { display: none; }
+}

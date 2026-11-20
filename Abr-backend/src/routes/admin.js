@@ -5,12 +5,18 @@ const { validateLogin } = require("../middleware/validate");
 const loginRateLimiter = require("../middleware/loginRateLimiter");
 const authController = require("../controllers/authController");
 const adminController = require("../controllers/adminController");
+const support = require("../controllers/supportController");
+const { uploadSupportDocument } = require("../middleware/workerDocumentUpload");
 
 const router = express.Router();
 router.post("/auth/login", loginRateLimiter, validateLogin, asyncHandler(authController.adminLogin));
 router.post("/auth/logout", asyncHandler(authController.logoutAdmin));
 router.get("/auth/me", authenticate, authorize("admin"), asyncHandler(authController.me));
 router.use(authenticate, authorize("admin"));
+router.get("/support", asyncHandler(support.inbox));
+router.get("/support/:customerId", asyncHandler(support.adminThread));
+router.post("/support/:customerId", uploadSupportDocument, asyncHandler(support.adminMessage));
+router.get("/support/:customerId/:messageId/attachment", asyncHandler(support.adminAttachment));
 router.get("/overview", asyncHandler(adminController.overview));
 router.get("/bookings", asyncHandler(adminController.listBookings));
 router.get("/categories", asyncHandler(adminController.listCategories));

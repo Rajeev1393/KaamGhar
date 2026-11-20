@@ -1,5 +1,5 @@
-import Dashboard from "@/components/Dashboard";
+import AdminDashboard from "@/modules/admin/AdminDashboard";
 
 export default function AdminPage() {
-  return <Dashboard expectedRole="admin" />;
+  return <AdminDashboard />;
 }

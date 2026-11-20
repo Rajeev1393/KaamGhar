@@ -4,10 +4,12 @@ const workerRoutes = require("./routes/workers");
 const bookingRoutes = require("./routes/bookings");
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
+const supportRoutes = require("./routes/support");
 const cookieParser = require("cookie-parser");
 const sameOrigin = require("./middleware/sameOrigin");
 const asyncHandler = require("./utils/asyncHandler");
 const paymentsController = require("./controllers/paymentsController");
+const supportWhatsApp = require("./utils/supportWhatsApp");
 
 const app = express();
 
@@ -28,6 +30,9 @@ app.post(
   express.raw({ type: "application/json", limit: "1mb" }),
   asyncHandler(paymentsController.webhook)
 );
+app.get("/api/support/whatsapp/webhook", supportWhatsApp.verifyWebhook);
+app.post("/api/support/whatsapp/webhook", express.raw({ type: "application/json", limit: "1mb" }),
+  asyncHandler(supportWhatsApp.receiveWebhook));
 app.use(express.json({ limit: "10kb" }));
 app.use(express.static(require("path").join(__dirname, "..", "public")));
 
@@ -35,6 +40,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/workers", workerRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/support", supportRoutes);
 
 app.get(["/login", "/register"], (req, res) => {
   res.sendFile(require("path").join(__dirname, "..", "public", "login.html"));

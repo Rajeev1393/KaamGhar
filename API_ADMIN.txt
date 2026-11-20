@@ -132,9 +132,11 @@ Auth: Admin cookie
 Response: 200 OK
 {
   "categories": [
-    { "name": "Plumber", "label": "Plumbing" }
+    { "name": "Plumber", "label": "Plumbing", "price": 500 }
   ]
 }
+Existing and newly created categories start at ₹500. Editing a category price
+does not change professional-specific hourly rates.
 
 POST /api/admin/categories
 Auth: Admin cookie
@@ -144,11 +146,23 @@ Payload:
   "label": "Plumbing"
 }
 label is optional; when omitted, it defaults to name.
+New categories start at ₹500.
 
 Success: 201 Created
 {
-  "category": { "name": "Plumber", "label": "Plumbing" }
+  "category": { "name": "Plumber", "label": "Plumbing", "price": 500 }
 }
+
+PATCH /api/admin/categories/:name
+Auth: Admin cookie
+Payload: { "price": 750 }
+Updates the category price (₹1–₹1,000,000).
+
+DELETE /api/admin/categories/:name
+Auth: Admin cookie
+Deletes a category if no professional is assigned to it. Returns 409 if it
+is still in use. Deleted categories stay deleted after a backend restart and
+can be recreated with the same name.
 
 5. LIST PROFESSIONAL APPLICATIONS
 ---------------------------------

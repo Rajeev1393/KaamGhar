@@ -53,25 +53,16 @@ npm run dev
 
 Open [http://localhost:3001](http://localhost:3001). The frontend's same-origin `/api/*` proxy forwards session cookies and API requests to the backend URL configured in `Abr-frontend/.env`. See [`Abr-frontend/README.md`](./Abr-frontend/README.md) for pages, API integration, and frontend checks.
 
-## Dedicated provider portal
+## Provider portal
 
-The standalone provider login and dashboard live in [`Abr-provider/`](./Abr-provider/README.md). Start the backend on port `4000`, then in a separate terminal run:
-
-```powershell
-Set-Location .\Abr-provider
-Copy-Item .env.example .env.local
-npm install
-npm run dev
-```
-
-Open [http://localhost:3002/provider](http://localhost:3002/provider). Providers see only bookings assigned to their own profile; the existing customer and admin frontends remain in `Abr-frontend/`.
+Open [http://localhost:3001/provider](http://localhost:3001/provider) from the same Next.js instance as customer and admin. Providers can sign in, register, and manage bookings assigned to their own profile. Profile settings and earnings are under `/provider/profile`. See the [frontend module layout](./Abr-frontend/README.md#module-boundaries) for the source and route boundaries.
 
 ## Included workflows
 
 - **Customers:** register/sign in, discover verified professionals by category/city/search, submit bookings, view their booking history, and cancel eligible requests.
 - **Professionals:** apply with a service profile, wait for admin approval, edit profile and availability, review requests, accept/decline jobs, and mark confirmed jobs complete.
 - **Administrators:** use the dedicated `/admin` console to add professional accounts, review uploaded documents, approve/reject listings, manage approved customer/professional accounts, and inspect all bookings. New professionals stay in pending applications until approved; rejected profiles remain in the separate Rejected tab.
-- **Service categories:** admins can add categories from the `/admin` Categories tab. New categories are saved in MongoDB and immediately become available in professional registration. New employee/professional applications appear in `/admin` → **Professionals** → **Awaiting review**.
+- **Service categories:** admins can add categories from the `/admin` Categories tab. Each category starts at ₹500 and its price can be edited. Categories assigned to professionals cannot be deleted; reassign those professionals first. New categories are saved in MongoDB and immediately become available in professional registration. New employee/professional applications appear in `/admin` → **Professionals** → **Awaiting review**.
 - **Security and validation:** bcrypt password hashing, signed expiring HttpOnly session cookies, role-based authorization, login rate limiting, request validation, escaped search patterns, Helmet security headers, and database-backed booking ownership checks.
 
 Bookings track an hourly rate, selected service duration, total amount, and booking lifecycle but do not collect payments. Professional verification documents are stored privately under `private-storage/`, served only to admins, and excluded from version control. Browser location lookup needs explicit user permission and resolves the city through OpenStreetMap Nominatim. Payment processing, SMS/email notifications, and production deployment configuration require provider credentials and are not enabled in this local starter.
