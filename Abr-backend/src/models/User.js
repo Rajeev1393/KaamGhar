@@ -18,6 +18,8 @@ const userSchema = new mongoose.Schema(
     passwordResetDigest: { type: String, select: false, index: { sparse: true } },
     passwordResetExpiresAt: { type: Date, select: false },
     sessionVersion: { type: Number, default: 0 },
+    adminRole: { type: String, enum: ["owner", "operations", "locations"] },
+    adminTimeZone: String,
     role: {
       type: String,
       enum: ["customer", "worker", "admin"],
@@ -46,6 +48,7 @@ userSchema.methods.toSafeObject = function toSafeObject() {
     email: this.email,
     phone: this.phone,
     role: this.role,
+      ...(this.role === "admin" && { adminRole: this.adminRole ?? "owner" }),
     worker: this.worker
   };
 };

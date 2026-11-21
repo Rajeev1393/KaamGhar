@@ -1,6 +1,8 @@
 "use client";
 
 import AdminSupport from "./AdminSupport";
+import AdminManagement from "./AdminManagement";
+import { availableManagementTabs, type ManagementTab } from "./navigation";
 import DashboardFrame from "@/components/DashboardFrame";
 import { EmptyState, LoadingLine, Metric, StatusPill, WrenchIcon } from "@/components/DashboardParts";
 import { useTranslation } from "@/components/LanguageProvider";
@@ -9,8 +11,13 @@ import type { Booking, ServiceCategory, User, VerificationDocument, Worker } fro
 import { ArrowRight, BriefcaseBusiness, Check, ChevronDown, CircleDollarSign, ClipboardList, MapPin, RefreshCw, ShieldCheck, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
+const marketplaceTabs = ["overview", "pending", "approved", "rejected", "categories", "users", "bookings", "support", "profile"] as const;
+type AdminTab = (typeof marketplaceTabs)[number] | ManagementTab;
+
 function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refresh: number; onRefresh: () => void; notify: (message: string) => void }) {
   const { t, locale } = useTranslation();
+  const adminRole = user.adminRole ?? "owner";
+  const canOperate = adminRole !== "locations";
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [workersLoadedKey, setWorkersLoadedKey] = useState<string | null>(null);
@@ -18,7 +25,7 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [userRole, setUserRole] = useState<"all" | "customer" | "worker">("all");
-  const [tab, setTab] = useState<"overview" | "pending" | "approved" | "rejected" | "categories" | "users" | "bookings" | "support" | "profile">("overview");
+  const [tab, setTab] = useState<AdminTab>(canOperate ? "overview" : "locations");
   const [showCreateProfessional, setShowCreateProfessional] = useState(false);
   const [professionalCategory, setProfessionalCategory] = useState("");
   const professionalRateCategory = categories.find(({ name }) => name === professionalCategory);
@@ -47,15 +54,18 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
   const usersLoading = tab === "users" && usersLoadedKey !== usersRequestKey;
 
   useEffect(() => {
+    function selectTab(id: string) {
+      const allowed = availableManagementTabs(adminRole).some(({ id: tabId }) => tabId === id) ||
+        (canOperate && marketplaceTabs.some((tabId) => tabId === id));
+      if (allowed) setTab(id as AdminTab);
+    }
+
     function applyHash() {
-      if (window.location.hash === "#support") setTab("support");
+      selectTab(window.location.hash.slice(1) || (canOperate ? "overview" : "locations"));
     }
 
     function selectAdminTab(event: Event) {
-      const selectedTab = (event as CustomEvent<string>).detail;
-      if (["overview", "pending", "approved", "rejected", "categories", "users", "bookings", "support", "profile"].includes(selectedTab)) {
-        setTab(selectedTab as "overview" | "pending" | "approved" | "rejected" | "categories" | "users" | "bookings" | "support" | "profile");
-      }
+      selectTab((event as CustomEvent<string>).detail);
     }
     const initialHash = window.requestAnimationFrame(applyHash);
     window.addEventListener("hashchange", applyHash);
@@ -65,14 +75,15 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
       window.removeEventListener("hashchange", applyHash);
       window.removeEventListener("kaamghar-admin-tab", selectAdminTab);
     };
-  }, []);
+  }, [adminRole, canOperate]);
 
   useEffect(() => {
+    if (!canOperate) return;
     Promise.all([api<AdminOverview>("admin/overview"), api<{ bookings: Booking[] }>("admin/bookings")])
       .then(([stats, result]) => { setOverview(stats); setBookings(result.bookings); })
       .catch((reason: Error) => setError(reason.message))
       .finally(() => setBusy(false));
-  }, [refresh]);
+  }, [refresh, canOperate]);
 
   useEffect(() => {
     if (!showProfessionalApplications) return;
@@ -306,7 +317,7 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
     }
   }
 
-  const tabs = [
+  const tabs = canOperate ? [
     { id: "overview", label: t("Overview") },
     { id: "pending", label: overview?.stats.pendingApprovals ? `Pending · ${overview.stats.pendingApprovals}` : t("Pending") },
     { id: "approved", label: t("Approved") },
@@ -316,11 +327,14 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
     { id: "bookings", label: t("All bookings") },
     { id: "support", label: t("Support inbox") },
     { id: "profile", label: t("My profile") }
-  ] as const;
+  ] as const : [];
+  const management = availableManagementTabs(adminRole);
+  const selectedManagement = management.find((item) => item.id === tab);
 
   return <>
     {error && <p className="inline-error">{error}</p>}
-    <div className="admin-tabs">{tabs.map((item) => <button className={tab === item.id ? "admin-tab selected" : "admin-tab"} key={item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}<button className="button button-dark" onClick={() => { setShowCreateProfessional(true); setTab("users"); }}>{t("Create professional")}</button><button className="button button-outline tab-refresh" onClick={onRefresh}><RefreshCw size={14} />{" "}{t("Refresh")}</button></div>
+    <div className="admin-tabs">{[...tabs, ...management.map((item) => ({ ...item, label: t(item.label) }))].map((item) => <button className={tab === item.id ? "admin-tab selected" : "admin-tab"} key={item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}{canOperate && <button className="button button-dark" onClick={() => { setShowCreateProfessional(true); setTab("users"); }}>{t("Create professional")}</button>}<button className="button button-outline tab-refresh" onClick={onRefresh}><RefreshCw size={14} />{" "}{t("Refresh")}</button></div>
+    {selectedManagement && <AdminManagement tab={selectedManagement.id} role={adminRole} refresh={refresh} notify={notify} />}
     {tab === "overview" && <>
       <section className="admin-welcome"><div><p className="eyebrow">{t("A GOOD DAY TO GET THINGS DONE")}</p><h2>{t("The whole picture.")}</h2><span>{t("Here’s what’s happening across your neighbourhood.")}</span></div><div className="admin-welcome-art"><SparkleIcon /></div></section>
       <div className="metric-row admin-metrics"><Metric icon={Users} label={t("Customers")} value={overview?.stats.customers ?? "—"} foot={t("Registered households")} onClick={() => { setUserRole("customer"); setTab("users"); }} /><Metric icon={BriefcaseBusiness} label={t("Live professionals")} value={overview?.stats.professionals ?? "—"} foot={t("Approved service pros")} onClick={() => setTab("approved")} /><Metric icon={ShieldCheck} label={t("Needs your review")} value={overview?.stats.pendingApprovals ?? "—"} foot={`${overview?.stats.pendingDocuments ?? 0} documents pending`} onClick={() => setTab("pending")} /><Metric icon={ClipboardList} label={t("Total bookings")} value={overview?.stats.bookings ?? "—"} foot={t("Marketplace requests")} onClick={() => setTab("bookings")} /><Metric icon={CircleDollarSign} label={t("Payments received")} value={`₹${formatPrice(overview?.stats.paymentsReceived ?? 0)}`} foot={`${overview?.stats.paymentsReceivedCount ?? 0} captured bookings`} onClick={() => setTab("bookings")} /></div>

@@ -1211,3 +1211,46 @@ test("web panels are served and protected APIs reject anonymous requests", async
   });
   assert.equal(crossOriginRequest.status, 403);
 });
+
+test("location managers can create cities and cannot access marketplace or owner APIs", async (t) => {
+  const { Location, AuditLog } = require("../src/models/AdminManagement");
+  const manager = new User({ role: "admin", adminRole: "locations", email: "manager@example.com" });
+  const stateId = new mongoose.Types.ObjectId().toString();
+  const cityId = new mongoose.Types.ObjectId().toString();
+  const audit = [];
+  const original = { findById: User.findById, exists: Location.exists, create: Location.create, log: AuditLog.create };
+  User.findById = async () => manager;
+  Location.exists = async (filter) => {
+    assert.deepEqual(filter, { _id: stateId, parent: null });
+    return true;
+  };
+  Location.create = async (fields) => ({ ...fields, id: cityId });
+  AuditLog.create = async (entry) => { audit.push(entry); };
+  t.after(() => {
+    User.findById = original.findById;
+    Location.exists = original.exists;
+    Location.create = original.create;
+    AuditLog.create = original.log;
+  });
+
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once("listening", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const token = signToken(manager);
+  const headers = { Cookie: `kg_admin_session=${token}; kg_session=${token}` };
+
+  for (const path of ["/api/admin/admin-users", "/api/admin/audit-logs", "/api/admin/overview", "/api/bookings"]) {
+    assert.equal((await fetch(origin + path, { headers })).status, 403, path);
+  }
+  const response = await fetch(origin + "/api/admin/locations", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Mumbai", parent: stateId })
+  });
+  assert.equal(response.status, 201);
+  assert.deepEqual((await response.json()).location, { name: "Mumbai", parent: stateId, id: cityId });
+  assert.deepEqual(audit, [{
+    actor: "manager@example.com", method: "POST", route: "/api/admin/locations", target: [cityId], status: 201
+  }]);
+});

@@ -15,6 +15,12 @@ const bookingRequestLimiter = rateLimit({
 });
 
 router.use(authenticate);
+router.use((req, res, next) => {
+  if (req.user.role === "admin" && req.user.adminRole === "locations") {
+    return res.status(403).json({ message: "Your admin role does not have access to bookings." });
+  }
+  next();
+});
 router.get("/", authorize("customer", "worker", "admin"), asyncHandler(bookingsController.listMine));
 router.post("/", authorize("customer"), bookingRequestLimiter, (req, res) => {
   res.status(410).json({ message: "Create a payment order first using POST /api/bookings/payment/order." });

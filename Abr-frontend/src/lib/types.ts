@@ -1,4 +1,5 @@
 export type Role = "customer" | "worker" | "admin";
+export type AdminRole = "owner" | "operations" | "locations";
 
 export interface ServiceCategory {
   name: string;
@@ -24,6 +25,7 @@ export interface User {
   email: string;
   phone: string;
   role: Role;
+  adminRole?: AdminRole;
   worker?: string;
 }
 

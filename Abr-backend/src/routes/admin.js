@@ -7,12 +7,15 @@ const authController = require("../controllers/authController");
 const adminController = require("../controllers/adminController");
 const support = require("../controllers/supportController");
 const { uploadSupportDocument } = require("../middleware/workerDocumentUpload");
+const management = require("./adminManagement");
 
 const router = express.Router();
 router.post("/auth/login", loginRateLimiter, validateLogin, asyncHandler(authController.adminLogin));
 router.post("/auth/logout", asyncHandler(authController.logoutAdmin));
 router.get("/auth/me", authenticate, authorize("admin"), asyncHandler(authController.me));
 router.use(authenticate, authorize("admin"));
+router.use(management.recordAdminChange, management.router);
+router.use(management.requireAdminRole("owner", "operations"));
 router.get("/support", asyncHandler(support.inbox));
 router.get("/support/:customerId", asyncHandler(support.adminThread));
 router.post("/support/:customerId", uploadSupportDocument, asyncHandler(support.adminMessage));
