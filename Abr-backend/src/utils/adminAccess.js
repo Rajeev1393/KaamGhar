@@ -32,8 +32,8 @@ function requireAdminAccess(permission) {
 
 async function activeAssignedCity(id) {
   if (!id) return null;
-  const city = await Location.findOne({ _id: id, active: true, parent: { $ne: null } }).lean();
-  if (!city || !(await Location.exists({ _id: city.parent, parent: null, active: true }))) {
+  const city = await Location.findOne({ _id: id, deletedAt: null, active: true, parent: { $ne: null } }).lean();
+  if (!city || !(await Location.exists({ _id: city.parent, parent: null, deletedAt: null, active: true }))) {
     return null;
   }
   return city;

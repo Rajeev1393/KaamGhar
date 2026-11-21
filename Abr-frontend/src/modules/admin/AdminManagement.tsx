@@ -12,7 +12,7 @@ type RoleDefinition = { id: AdminRole; name: string; permissions: string[] };
 type Log = { _id: string; actor: string; method: string; route: string; target: string[]; status: number; createdAt: string };
 type Settings = { timeZone: string };
 type SectionProps = { refresh: number; notify: (message: string) => void };
-type Save = (path: string, method: "POST" | "PATCH", body: object) => Promise<boolean>;
+type Save = (path: string, method: "POST" | "PATCH" | "DELETE", body?: object) => Promise<boolean>;
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong. Please try again.";
@@ -38,13 +38,13 @@ function SectionData<T>({ path, refresh, notify, children }: SectionProps & {
     return () => controller.abort();
   }, [key, path]);
 
-  async function save(endpoint: string, method: "POST" | "PATCH", body: object) {
+  const save: Save = async (endpoint, method, body) => {
     setSaving(true);
     setSaveError("");
     try {
       await api(`admin/${endpoint}`, { method, body: JSON.stringify(body) });
       setRevision((value) => value + 1);
-      notify("Changes saved.");
+      notify(method === "DELETE" ? "Location deleted." : "Changes saved.");
       return true;
     } catch (error) {
       setSaveError(errorMessage(error));
@@ -52,7 +52,7 @@ function SectionData<T>({ path, refresh, notify, children }: SectionProps & {
     } finally {
       setSaving(false);
     }
-  }
+  };
 
   if (result?.key !== key) return <LoadingLine />;
   if (result.error) return <p className="inline-error" role="alert">{result.error}</p>;
@@ -77,6 +77,12 @@ function LocationRow({ location, editable, saving, save, parentActive = true }: 
       <button className="button button-outline" type="button" disabled={saving} onClick={() => {
         void save(`locations/${location._id}`, "PATCH", { active: !location.active });
       }}>{location.active ? "Disable" : "Enable"}</button>
+      <button className="button button-outline danger-button" type="button" disabled={saving} onClick={() => {
+        const kind = location.parent === null ? "state" : "city";
+        if (window.confirm(`Delete ${kind} "${location.name}" from Locations & Cities?`)) {
+          void save(`locations/${location._id}`, "DELETE");
+        }
+      }}>Delete {location.parent === null ? "state" : "city"}</button>
     </>}
   </form>;
 }

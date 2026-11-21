@@ -1222,10 +1222,11 @@ test("location managers can create cities and cannot access marketplace or owner
   const original = { findById: User.findById, exists: Location.exists, create: Location.create, log: AuditLog.create };
   User.findById = async () => manager;
   Location.exists = async (filter) => {
-    assert.deepEqual(filter, { _id: stateId, parent: null });
+    assert.deepEqual(filter, { _id: stateId, parent: null, deletedAt: null });
     return true;
   };
   Location.create = async (fields) => ({ ...fields, id: cityId });
+  t.mock.method(Location, "findOneAndUpdate", async () => null);
   AuditLog.create = async (entry) => { audit.push(entry); };
   t.after(() => {
     User.findById = original.findById;
@@ -1304,4 +1305,42 @@ test("employee role presets keep verification, finance and staff privileges sepa
   assert.equal(access("verification", "verify"), true);
   assert.equal(access("verification", "payouts"), false);
   assert.equal(access("marketing", "staff"), false);
+});
+
+test("location deletion protects child cities and assignments and archives unlinked cities", async (t) => {
+  const { Location, AuditLog } = require("../src/models/AdminManagement");
+  const owner = new User({ role: "admin", email: "owner@example.com" });
+  const stateId = new mongoose.Types.ObjectId();
+  const cityId = new mongoose.Types.ObjectId();
+  let assigned = true;
+  const changes = [];
+  t.mock.method(User, "findById", async () => owner);
+  t.mock.method(User, "exists", async ({ adminCity }) => assigned && adminCity === String(cityId));
+  t.mock.method(Worker, "exists", async () => false);
+  t.mock.method(Location, "exists", async ({ parent }) => parent === String(stateId));
+  t.mock.method(Location, "findById", (_id) => ({
+    select: () => ({ lean: async () => ({ parent: _id === String(stateId) ? null : stateId }) })
+  }));
+  t.mock.method(Location, "updateOne", async (filter, update) => {
+    changes.push({ filter, update });
+    return { matchedCount: 1 };
+  });
+  t.mock.method(AuditLog, "create", async () => {});
+
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once("listening", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const url = `http://127.0.0.1:${server.address().port}/api/admin/locations/`;
+  const options = { method: "DELETE", headers: { Cookie: `kg_admin_session=${signToken(owner)}` } };
+
+  assert.equal((await fetch(url + stateId, options)).status, 409);
+  assert.equal((await fetch(url + cityId, options)).status, 409);
+  assert.equal(changes.length, 0);
+
+  assigned = false;
+  assert.equal((await fetch(url + cityId, options)).status, 204);
+  assert.equal(changes.length, 1);
+  assert.deepEqual(changes[0].filter, { _id: String(cityId), deletedAt: null });
+  assert.equal(changes[0].update.$set.active, false);
+  assert.ok(changes[0].update.$set.deletedAt instanceof Date);
 });

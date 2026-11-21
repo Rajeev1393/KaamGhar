@@ -71,17 +71,22 @@ router.get("/locations", requireAdminAccess("locations-read"), asyncHandler(asyn
   const filter = req.user.adminRole === "city-manager"
     ? { _id: { $in: city ? [city._id, city.parent] : [] } }
     : {};
-  const locations = await Location.find(filter).sort({ name: 1 }).lean();
+  const locations = await Location.find({ ...filter, deletedAt: null }).sort({ name: 1 }).lean();
   res.json({ locations });
 }));
 
 router.post("/locations", requireAdminAccess("locations-write"), locationChange(async (req, res) => {
   const name = requiredText(req.body.name, 100, "Location name");
   const parent = req.body.parent == null ? null : validId(req.body.parent);
-  if (parent && !(await Location.exists({ _id: parent, parent: null }))) {
+  if (parent && !(await Location.exists({ _id: parent, parent: null, deletedAt: null }))) {
     throw httpError(404, "State not found.");
   }
-  const location = await Location.create({ name, parent });
+  const restored = await Location.findOneAndUpdate(
+    { name, parent, deletedAt: { $type: "date" } },
+    { $set: { name, active: true }, $unset: { deletedAt: 1 } },
+    { collation: { locale: "en", strength: 2 }, new: true }
+  );
+  const location = restored ?? await Location.create({ name, parent });
   res.locals.auditTarget = [location.id];
   res.status(201).json({ location });
 }));
@@ -91,15 +96,41 @@ router.patch("/locations/:id", requireAdminAccess("locations-write"), locationCh
   if (req.body.name !== undefined) changes.name = requiredText(req.body.name, 100, "Location name");
   if (typeof req.body.active === "boolean") changes.active = req.body.active;
   if (!Object.keys(changes).length) throw httpError(400, "Provide a name or status.");
-  const location = await Location.findByIdAndUpdate(validId(req.params.id), changes, { new: true, runValidators: true });
+  const location = await Location.findOneAndUpdate(
+    { _id: validId(req.params.id), deletedAt: null }, changes, { new: true, runValidators: true }
+  );
   if (!location) throw httpError(404, "Location not found.");
   res.json({ location });
+}));
+
+router.delete("/locations/:id", requireAdminAccess("locations-write"), asyncHandler(async (req, res) => {
+  const _id = validId(req.params.id);
+  const location = await Location.findById(_id).select("parent deletedAt").lean();
+  if (!location || location.deletedAt) throw httpError(404, "Location not found.");
+
+  if (location.parent === null) {
+    if (await Location.exists({ parent: _id, deletedAt: null })) {
+      throw httpError(409, "Delete the cities in this state first.");
+    }
+  } else {
+    const [employee, professional] = await Promise.all([
+      User.exists({ role: "admin", adminCity: _id }),
+      Worker.exists({ adminCity: _id, deletedAt: { $exists: false } })
+    ]);
+    if (employee || professional) {
+      throw httpError(409, "Remove or change the employee and professional assignments for this city first.");
+    }
+  }
+
+  const result = await Location.updateOne({ _id, deletedAt: null }, { $set: { active: false, deletedAt: new Date() } });
+  if (!result.matchedCount) throw httpError(404, "Location not found.");
+  res.status(204).end();
 }));
 
 router.get("/admin-users", requireAdminAccess("staff"), asyncHandler(async (req, res) => {
   const [admins, locations] = await Promise.all([
     User.find({ role: "admin" }).select(adminFields).sort({ name: 1 }).lean(),
-    Location.find().sort({ name: 1 }).lean()
+    Location.find({ deletedAt: null }).sort({ name: 1 }).lean()
   ]);
   res.json({ admins, roles: roleDefinitions, locations, currentAdminId: req.user.id });
 }));
