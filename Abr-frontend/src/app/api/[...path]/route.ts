@@ -30,7 +30,8 @@ async function proxy(request: NextRequest) {
       }
     }
     if (/^admin\/professionals\/[^/]+\/documents\/[^/]+\/file$/.test(path) ||
-        /^(?:admin\/support\/[^/]+|support)\/[^/]+\/attachment$/.test(path)) {
+        /^(?:admin\/support\/[^/]+|support)\/[^/]+\/attachment$/.test(path) ||
+        /^(?:admin|customer-experience)\/complaints\/[^/]+\/evidence\/[^/]+$/.test(path)) {
       for (const name of ["cache-control", "content-disposition", "x-content-type-options"]) {
         const value = upstream.headers.get(name);
         if (value) responseHeaders.set(name, value);

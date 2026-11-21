@@ -406,3 +406,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .customer-experience-list :is(p, time) { margin: 0; white-space: pre-wrap; }
 .customer-experience-list time { font-size: .8rem; }
 .booking-modal .customer-experience { margin-bottom: .75rem; }
+
+.ticket-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: .6rem; margin: .5rem 0; }
+.ticket-details div { padding: .45rem; border: 1px solid #9aa89a55; border-radius: 4px; }
+.ticket-details dt { font-weight: 600; }
+.ticket-details dd { margin: .25rem 0 0; overflow-wrap: anywhere; }
+.ticket-action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: .75rem; }
+.ticket-tools { padding: .7rem; border: 1px solid #9aa89a55; border-radius: 5px; }
+.ticket-tools summary { cursor: pointer; font-weight: 600; }
+.ticket-note { margin-top: .65rem; }

@@ -10,7 +10,7 @@ export const marketplaceTabs = [
   { id: "users", label: "Users", permission: "accounts", icon: Users },
   { id: "bookings", label: "Bookings", permission: "bookings", icon: ClipboardList },
   { id: "support", label: "Support inbox", permission: "support", icon: MessageCircle },
-  { id: "complaints", label: "Complaints & Disputes", permission: "support", icon: Flag },
+  { id: "complaints", label: "Support & Complaint Center", permission: "tickets", icon: Flag },
   { id: "profile", label: "My profile", icon: BriefcaseBusiness },
 ] as const;
 

@@ -6,11 +6,12 @@ import { LoadingLine } from "@/components/DashboardParts";
 import { api, formatDate } from "@/lib/api";
 import type { Booking } from "@/lib/types";
 
-import { complaintStatuses, type Complaint } from "@/lib/customerExperience";
+import { TicketDetails, TicketEvidence } from "@/components/TicketDetails";
+import { ticketCategories, type Ticket } from "@/lib/customerExperience";
 
 function CustomerComplaints({ refresh, onRefresh, notify }: { refresh: number; onRefresh: () => void; notify: (value: string) => void }) {
-  const [data, setData] = useState<{ complaints: Complaint[]; bookings: Booking[] }>();
-  const [kind, setKind] = useState<Complaint["kind"]>("complaint");
+  const [data, setData] = useState<{ complaints: Ticket[]; bookings: Booking[] }>();
+  const [kind, setKind] = useState<Ticket["kind"]>("complaint");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -18,7 +19,7 @@ function CustomerComplaints({ refresh, onRefresh, notify }: { refresh: number; o
     const controller = new AbortController();
     const options = { signal: controller.signal };
     Promise.all([
-      api<{ complaints: Complaint[] }>("customer-experience/complaints", options),
+      api<{ complaints: Ticket[] }>("customer-experience/complaints", options),
       api<{ bookings: Booking[] }>("bookings", options),
     ]).then(([cases, bookings]) => { setData({ ...cases, ...bookings }); setError(""); })
       .catch((reason: Error) => { if (!controller.signal.aborted) setError(reason.message); });
@@ -46,13 +47,13 @@ function CustomerComplaints({ refresh, onRefresh, notify }: { refresh: number; o
   }
 
   return <section className="dash-panel customer-experience">
-    <div className="panel-heading"><h2>Complaints &amp; Disputes</h2><button className="button button-outline" onClick={onRefresh}>Refresh status</button></div>
+    <div className="panel-heading"><h2>Customer Support &amp; Complaint Center</h2><button className="button button-outline" onClick={onRefresh}>Refresh status</button></div>
     <p>Raise a complaint about your account or service, or select a booking to dispute it.</p>
     {error && <p className="inline-error" role="alert">{error}</p>}
     {!data && !error && <LoadingLine />}
     {data && <>
       <form className="profile-form customer-experience-form" onSubmit={submit}>
-        <label>Type<select name="kind" value={kind} onChange={(event) => setKind(event.target.value as Complaint["kind"])}>
+        <label>Type<select name="kind" value={kind} onChange={(event) => setKind(event.target.value as Ticket["kind"])}>
           <option value="complaint">General complaint</option><option value="dispute" disabled={!data.bookings.length}>Booking dispute</option>
         </select></label>
         <label>Booking {kind === "complaint" ? "(optional)" : ""}<select name="bookingId" defaultValue="" required={kind === "dispute"}>
@@ -61,18 +62,23 @@ function CustomerComplaints({ refresh, onRefresh, notify }: { refresh: number; o
             {booking.worker?.name ?? "Professional"} — {formatDate(booking.scheduledAt)}
           </option>)}
         </select></label>
+        <label>Category<select name="category" defaultValue="" required>
+          <option value="" disabled>Choose a ticket category</option>
+          {Object.entries(ticketCategories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></label>
         <label>Subject<input name="subject" minLength={3} maxLength={100} required /></label>
         <label>What happened?<textarea name="details" rows={4} minLength={10} maxLength={2000} required /></label>
         <button className="button button-dark" disabled={saving}>Submit to support</button>
       </form>
-      <h3>Your cases</h3>
+      <h3>Your tickets</h3>
       <div className="customer-experience-list">
         {!data.complaints.length && <p>No cases yet.</p>}
         {data.complaints.map((item) => <article key={item._id}>
-          <strong>{item.subject} · {complaintStatuses[item.status]}</strong>
-          <time dateTime={item.createdAt}>{formatDate(item.createdAt)}</time>
+          <h3>{item.subject}</h3>
+          <TicketDetails ticket={item} />
           <p>{item.details}</p>
-          {item.response && <p><strong>Support update</strong> {item.response}</p>}
+          {item.response && <p><strong>Support reply</strong> {item.response}</p>}
+          <TicketEvidence ticket={item} onUploaded={onRefresh} />
         </article>)}
       </div>
     </>}

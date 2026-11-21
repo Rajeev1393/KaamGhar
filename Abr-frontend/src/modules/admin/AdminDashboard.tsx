@@ -516,7 +516,7 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
         </div>
       </article>)}</div> : <EmptyState title={t("No accounts found.")} text={t("Registered customer and professional accounts will appear here.")} />}
     </section>}
-    {tab === "complaints" && <AdminComplaints refresh={refresh} notify={notify} />}
+    {tab === "complaints" && <AdminComplaints refresh={refresh} notify={notify} onRefresh={onRefresh} />}
     {tab === "support" && <AdminSupport refresh={refresh} />}
     {tab === "bookings" && <AdminBookings bookings={bookings} stats={overview?.stats} />}
   </>;

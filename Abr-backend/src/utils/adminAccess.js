@@ -3,8 +3,8 @@ const { Location } = require("../models/AdminManagement");
 const roles = [
   { id: "owner", name: "Super Admin", permissions: ["Full control"], access: ["*"] },
   { id: "super-admin", name: "Super Admin", permissions: ["Full control"], access: ["*"] },
-  { id: "operations", name: "Operations Manager", permissions: ["Bookings", "Professional accounts"], access: ["bookings", "professionals", "create-professional", "locations-read", "accounts", "booking-status"] },
-  { id: "support", name: "Customer Support", permissions: ["Customer accounts", "Support inbox and complaints"], access: ["accounts", "support"] },
+  { id: "operations", name: "Operations Manager", permissions: ["Bookings", "Professional accounts", "Escalated support tickets"], access: ["bookings", "professionals", "create-professional", "locations-read", "accounts", "booking-status", "tickets"] },
+  { id: "support", name: "Customer Support", permissions: ["Customer accounts", "Support inbox and complaints"], access: ["accounts", "support", "tickets"] },
   { id: "finance", name: "Finance", permissions: ["Booking transactions and refund status", "Provider payouts"], access: ["bookings", "professionals", "payouts", "transactions"] },
   { id: "city-manager", name: "City Manager", permissions: ["Assigned city and its linked professionals only"], access: ["locations-read", "professionals"] },
   { id: "verification", name: "Verification Team", permissions: ["Documents and professional verification"], access: ["professionals", "verify"] },

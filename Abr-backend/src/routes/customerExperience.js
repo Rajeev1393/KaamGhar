@@ -2,8 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const Booking = require("../models/Booking");
 const Worker = require("../models/Worker");
-const { Review, Complaint } = require("../models/CustomerExperience");
-const { requireAdminAccess } = require("../utils/adminAccess");
+const { Review } = require("../models/CustomerExperience");
 const { authenticate, authorize } = require("../middleware/authenticate");
 const { requiredString } = require("../middleware/validate");
 const asyncHandler = require("../utils/asyncHandler");
@@ -71,45 +70,6 @@ async function publicReviews(req, res) {
   res.json({ reviews });
 }
 
-customer.get("/complaints", asyncHandler(async (req, res) => {
-  const complaints = await Complaint.find({ customer: req.user._id }).sort({ createdAt: -1 }).limit(100).lean();
-  res.json({ complaints });
-}));
-
-customer.post("/complaints", asyncHandler(async (req, res) => {
-  const { kind, bookingId } = req.body;
-  if (!["complaint", "dispute"].includes(kind)) throw httpError(400, "Choose complaint or booking dispute.");
-  if (kind === "dispute" && !bookingId) throw httpError(400, "Choose the booking you want to dispute.");
-  const subject = requiredString(req.body.subject, "Subject", 3, 100);
-  const details = requiredString(req.body.details, "Details", 10, 2000);
-  if (bookingId && !(await Booking.exists({ _id: recordId(bookingId), customer: req.user._id }))) {
-    throw httpError(404, "Booking not found.");
-  }
-  const complaint = await Complaint.create({ customer: req.user._id, kind, subject, details, booking: bookingId || undefined });
-  res.status(201).json({ complaint });
-}));
-
-admin.get("/complaints", requireAdminAccess("support"), asyncHandler(async (req, res) => {
-  const status = req.query.status ?? "open";
-  if (!["open", "in_review", "resolved"].includes(status)) throw httpError(400, "Choose a complaint status.");
-  const complaints = await Complaint.find({ status }).sort({ updatedAt: -1 })
-    .limit(100).populate("customer", "name").lean();
-  res.json({ complaints });
-}));
-
-admin.patch("/complaints/:id", requireAdminAccess("support"), asyncHandler(async (req, res) => {
-  const { status, previousStatus } = req.body;
-  const updatedAt = typeof req.body.updatedAt === "string" ? new Date(req.body.updatedAt) : null;
-  const nextStatuses = { open: ["in_review", "resolved"], in_review: ["in_review", "resolved"], resolved: ["in_review", "resolved"] };
-  if (!updatedAt || Number.isNaN(updatedAt.getTime()) || typeof previousStatus !== "string" || !Object.hasOwn(nextStatuses, previousStatus) || !nextStatuses[previousStatus].includes(status)) {
-    throw httpError(400, "Choose a valid case status.");
-  }
-  const response = requiredString(req.body.response, "Customer update", 1, 2000);
-  const complaint = await Complaint.findOneAndUpdate(
-    { _id: recordId(req.params.id), status: previousStatus, updatedAt }, { $set: { status, response } }, { new: true }
-  );
-  if (!complaint) throw httpError(409, "This case changed. Refresh before saving.");
-  res.json({ complaint });
-}));
+require("./supportTickets")(customer, admin);
 
 module.exports = { customer, admin, publicReviews };

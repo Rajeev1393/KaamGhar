@@ -1424,26 +1424,49 @@ test("verified reviews require a completed customer booking and update the publi
   assert.equal((await submit()).status, 409);
 });
 
-test("booking disputes require ownership and support can post a customer-visible resolution", async (t) => {
-  const { Complaint } = require("../src/models/CustomerExperience");
+test("support tickets enforce booking ownership, escalation tiers, SLA and refund approval", async (t) => {
+  const { Complaint, TicketEvidence } = require("../src/models/CustomerExperience");
   const { AuditLog } = require("../src/models/AdminManagement");
   const customer = new User({ role: "customer" });
+  const otherCustomer = new User({ role: "customer" });
   const support = new User({ role: "admin", adminRole: "support", email: "support@example.com" });
+  const operations = new User({ role: "admin", adminRole: "operations" });
+  const owner = new User({ role: "admin" });
+  const accounts = [customer, otherCustomer, support, operations, owner];
   const bookingId = new mongoose.Types.ObjectId().toString();
-  const caseId = new mongoose.Types.ObjectId().toString();
-  const updatedAt = new Date();
+  const ticketId = new mongoose.Types.ObjectId().toString();
+  const professional = new mongoose.Types.ObjectId();
   let bookingOwned = false;
-  t.mock.method(User, "findById", async (id) => String(id) === customer.id ? customer : support);
-  t.mock.method(Booking, "exists", async (filter) => {
-    assert.deepEqual(filter, { _id: bookingId, customer: customer._id });
-    return bookingOwned;
+  let ticket;
+  t.mock.method(User, "findById", async (id) => accounts.find((account) => account.id === String(id)));
+  t.mock.method(User, "findOne", ({ _id, adminRole }) => ({
+    select: () => ({ lean: async () => accounts.find((account) => account.id === _id && adminRole.$in.includes(account.adminRole ?? null)) })
+  }));
+  t.mock.method(Booking, "findOne", (filter) => {
+    assert.deepEqual(filter.customer, customer._id);
+    assert.equal(filter._id, bookingId);
+    return { select: () => ({ lean: async () => bookingOwned ? { worker: professional, totalAmount: 200 } : null }) };
   });
-  t.mock.method(Complaint, "create", async (record) => ({ ...record, _id: caseId, status: "open" }));
-  t.mock.method(Complaint, "findOneAndUpdate", async (query, update) => {
-    assert.deepEqual(query, { _id: caseId, status: "open", updatedAt });
-    return { _id: caseId, ...update.$set };
+  t.mock.method(Complaint, "create", async (record) => {
+    ticket = { ...record, id: ticketId, _id: ticketId, status: "open", updatedAt: record.createdAt };
+    return ticket;
+  });
+  t.mock.method(Complaint, "findOne", (filter) => ({
+    lean: async () => !filter.customer || filter.customer.equals(ticket.customer) ? ticket : null
+  }));
+  t.mock.method(Complaint, "updateOne", async ({ updatedAt }, update) => {
+    if (+updatedAt !== +ticket.updatedAt) return { matchedCount: 0 };
+    for (const [key, value] of Object.entries(update.$set ?? {})) {
+      if (key.startsWith("refund.")) ticket.refund[key.split(".")[1]] = value;
+      else ticket[key] = value;
+    }
+    for (const key of Object.keys(update.$unset ?? {})) delete ticket[key];
+    if (update.$push?.notes) (ticket.notes ??= []).push(update.$push.notes);
+    ticket.updatedAt = new Date(+ticket.updatedAt + 1000);
+    return { matchedCount: 1 };
   });
   t.mock.method(AuditLog, "create", async () => {});
+  const download = t.mock.method(TicketEvidence, "findOne", () => { throw new Error("Cross-customer download"); });
 
   const server = app.listen(0);
   await new Promise((resolve) => server.once("listening", resolve));
@@ -1453,13 +1476,41 @@ test("booking disputes require ownership and support can post a customer-visible
     method, headers: { Cookie: `${account.role === "admin" ? "kg_admin_session" : "kg_session"}=${signToken(account)}`, "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
-  const body = { kind: "dispute", bookingId, subject: "Service dispute", details: "The service was left unfinished." };
+  const patch = (account, fields) => send("/admin/complaints/" + ticketId, "PATCH", account, {
+    updatedAt: ticket.updatedAt.toISOString(), ...fields
+  });
+  const body = { kind: "dispute", category: "safety", bookingId, subject: "Service dispute", details: "The service was left unfinished." };
   assert.equal((await send("/customer-experience/complaints", "POST", customer, body)).status, 404);
   bookingOwned = true;
   assert.equal((await send("/customer-experience/complaints", "POST", customer, body)).status, 201);
-  const response = await send("/admin/complaints/" + caseId, "PATCH", support, {
-    status: "resolved", previousStatus: "open", updatedAt: updatedAt.toISOString(), response: "Support reviewed this booking."
-  });
-  assert.equal(response.status, 200);
-  assert.equal((await response.json()).complaint.response, "Support reviewed this booking.");
+  assert.equal(ticket.priority, "urgent");
+  assert.equal(ticket.professional, professional);
+  assert.equal(ticket.responseDueAt - ticket.createdAt, 3600000);
+  assert.equal((await patch(support, { action: "update", status: "resolved" })).status, 400);
+  assert.equal((await patch(support, { action: "assign", agentId: support.id })).status, 200);
+  assert.equal(ticket.status, "assigned");
+  assert.equal((await patch(support, { action: "update", status: "in_progress", response: "We are reviewing your case." })).status, 200);
+  assert.ok(ticket.firstResponseAt instanceof Date);
+  assert.equal((await patch(support, { action: "note", note: "Internal details" })).status, 200);
+  assert.equal(ticket.notes[0].text, "Internal details");
+  assert.equal((await patch(support, { action: "refund", refundAction: "request", amount: 21000, reason: "Paid for incomplete work" })).status, 400);
+  assert.equal((await patch(support, { action: "refund", refundAction: "request", amount: 10000, reason: "Paid for incomplete work" })).status, 200);
+  assert.equal((await patch(support, { action: "refund", refundAction: "approve", reason: "Reviewed" })).status, 403);
+  assert.equal((await patch(support, { action: "escalate" })).status, 200);
+  assert.equal(ticket.level, "operations");
+  assert.equal(ticket.assignedAgent, undefined);
+  assert.equal((await patch(support, { action: "note", note: "No longer visible" })).status, 404);
+  assert.equal((await patch(operations, { action: "escalate" })).status, 200);
+  assert.equal(ticket.level, "management");
+  assert.equal((await patch(owner, { action: "refund", refundAction: "approve", reason: "Reviewed" })).status, 200);
+  assert.equal(ticket.refundReserved, true);
+  assert.equal((await patch(owner, { action: "refund", refundAction: "record", reference: "refund-123" })).status, 200);
+  assert.equal(ticket.refund.status, "recorded");
+  assert.equal((await patch(owner, { action: "assign", agentId: owner.id })).status, 200);
+  assert.equal((await patch(owner, { action: "update", status: "in_progress" })).status, 200);
+  assert.equal((await patch(owner, { action: "update", status: "resolved", response: "Refund recorded by support." })).status, 200);
+  assert.equal((await patch(owner, { action: "update", status: "closed" })).status, 200);
+  const attachmentUrl = `/customer-experience/complaints/${ticketId}/evidence/${new mongoose.Types.ObjectId()}`;
+  assert.equal((await send(attachmentUrl, "GET", otherCustomer)).status, 404);
+  assert.equal(download.mock.callCount(), 0);
 });
