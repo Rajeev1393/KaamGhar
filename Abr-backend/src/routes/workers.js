@@ -1,6 +1,7 @@
 const express = require("express");
 const asyncHandler = require("../utils/asyncHandler");
 const { authenticate, authorize } = require("../middleware/authenticate");
+const { publicReviews } = require("./customerExperience");
 const workersController = require("../controllers/workersController");
 const workerDocumentsController = require("../controllers/workerDocumentsController");
 const uploadWorkerDocument = require("../middleware/workerDocumentUpload");
@@ -17,6 +18,7 @@ router.post(
   uploadWorkerDocument,
   asyncHandler(workerDocumentsController.upload)
 );
+router.get("/:id/reviews", asyncHandler(publicReviews));
 router.get("/", asyncHandler(workersController.listPublic));
 router.patch("/me", authenticate, authorize("worker"), asyncHandler(workersController.updateOwnProfile));
 

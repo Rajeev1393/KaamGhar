@@ -4,6 +4,7 @@ const workerRoutes = require("./routes/workers");
 const bookingRoutes = require("./routes/bookings");
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
+const { customer: customerExperience } = require("./routes/customerExperience");
 const supportRoutes = require("./routes/support");
 const cookieParser = require("cookie-parser");
 const sameOrigin = require("./middleware/sameOrigin");
@@ -41,6 +42,7 @@ app.use("/api/workers", workerRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/customer-experience", customerExperience);
 
 app.get(["/login", "/register", "/admin/login"], (req, res) => {
   res.sendFile(require("path").join(__dirname, "..", "public", "login.html"));

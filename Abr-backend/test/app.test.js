@@ -1385,3 +1385,81 @@ test("commerce access separates settlement, promotion and membership permissions
   assert.equal(access("marketing", "memberships"), false);
   assert.equal(access("super-admin", "memberships"), true);
 });
+
+test("verified reviews require a completed customer booking and update the public rating", async (t) => {
+  const { Review } = require("../src/models/CustomerExperience");
+  const customer = new User({ role: "customer", email: "reviewer@example.com" });
+  const bookingId = new mongoose.Types.ObjectId().toString();
+  const workerId = new mongoose.Types.ObjectId();
+  const session = { withTransaction: (run) => run(), endSession: async () => {} };
+  let completed = false;
+  let review;
+  t.mock.method(User, "findById", async () => customer);
+  t.mock.method(mongoose, "startSession", async () => session);
+  t.mock.method(Booking, "findOne", (filter) => {
+    assert.deepEqual(filter, { _id: bookingId, customer: customer._id, status: "completed" });
+    return { select: () => ({ session: async () => completed ? { worker: workerId } : null }) };
+  });
+  t.mock.method(Review, "create", async ([record], options) => {
+    assert.equal(options.session, session);
+    if (review) throw Object.assign(new Error("duplicate"), { code: 11000 });
+    review = record;
+  });
+  t.mock.method(Review, "aggregate", () => ({ session: async () => [{ average: 4.5, count: 2 }] }));
+  const update = t.mock.method(Worker, "updateOne", async () => ({ matchedCount: 1 }));
+
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once("listening", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const url = `http://127.0.0.1:${server.address().port}/api/customer-experience/reviews`;
+  const headers = { Cookie: `kg_session=${signToken(customer)}`, "Content-Type": "application/json" };
+  const submit = () => fetch(url, { method: "POST", headers, body: JSON.stringify({ bookingId, rating: 5, text: "Great service" }) });
+
+  assert.equal((await submit()).status, 404);
+  assert.equal(review, undefined);
+  completed = true;
+  assert.equal((await submit()).status, 201);
+  assert.equal(review.rating, 5);
+  assert.deepEqual(update.mock.calls[0].arguments[1], { $set: { rating: 4.5, reviewCount: 2 } });
+  assert.equal((await submit()).status, 409);
+});
+
+test("booking disputes require ownership and support can post a customer-visible resolution", async (t) => {
+  const { Complaint } = require("../src/models/CustomerExperience");
+  const { AuditLog } = require("../src/models/AdminManagement");
+  const customer = new User({ role: "customer" });
+  const support = new User({ role: "admin", adminRole: "support", email: "support@example.com" });
+  const bookingId = new mongoose.Types.ObjectId().toString();
+  const caseId = new mongoose.Types.ObjectId().toString();
+  const updatedAt = new Date();
+  let bookingOwned = false;
+  t.mock.method(User, "findById", async (id) => String(id) === customer.id ? customer : support);
+  t.mock.method(Booking, "exists", async (filter) => {
+    assert.deepEqual(filter, { _id: bookingId, customer: customer._id });
+    return bookingOwned;
+  });
+  t.mock.method(Complaint, "create", async (record) => ({ ...record, _id: caseId, status: "open" }));
+  t.mock.method(Complaint, "findOneAndUpdate", async (query, update) => {
+    assert.deepEqual(query, { _id: caseId, status: "open", updatedAt });
+    return { _id: caseId, ...update.$set };
+  });
+  t.mock.method(AuditLog, "create", async () => {});
+
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once("listening", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const origin = `http://127.0.0.1:${server.address().port}/api`;
+  const send = (path, method, account, body) => fetch(origin + path, {
+    method, headers: { Cookie: `${account.role === "admin" ? "kg_admin_session" : "kg_session"}=${signToken(account)}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const body = { kind: "dispute", bookingId, subject: "Service dispute", details: "The service was left unfinished." };
+  assert.equal((await send("/customer-experience/complaints", "POST", customer, body)).status, 404);
+  bookingOwned = true;
+  assert.equal((await send("/customer-experience/complaints", "POST", customer, body)).status, 201);
+  const response = await send("/admin/complaints/" + caseId, "PATCH", support, {
+    status: "resolved", previousStatus: "open", updatedAt: updatedAt.toISOString(), response: "Support reviewed this booking."
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).complaint.response, "Support reviewed this booking.");
+});

@@ -8,6 +8,7 @@ const adminController = require("../controllers/adminController");
 const support = require("../controllers/supportController");
 const { uploadSupportDocument } = require("../middleware/workerDocumentUpload");
 const { requireAdminAccess } = require("../utils/adminAccess");
+const { admin: customerExperience } = require("./customerExperience");
 const commerce = require("./adminCommerce");
 const management = require("./adminManagement");
 
@@ -16,7 +17,7 @@ router.post("/auth/login", loginRateLimiter, validateLogin, asyncHandler(authCon
 router.post("/auth/logout", asyncHandler(authController.logoutAdmin));
 router.get("/auth/me", authenticate, authorize("admin"), asyncHandler(authController.me));
 router.use(authenticate, authorize("admin"));
-router.use(management.recordAdminChange, management.router, commerce);
+router.use(management.recordAdminChange, management.router, commerce, customerExperience);
 router.get("/support", requireAdminAccess("support"), asyncHandler(support.inbox));
 router.get("/support/:customerId", requireAdminAccess("support"), asyncHandler(support.adminThread));
 router.post("/support/:customerId", requireAdminAccess("support"), uploadSupportDocument, asyncHandler(support.adminMessage));

@@ -1,5 +1,5 @@
 import type { User } from "@/lib/types";
-import { BriefcaseBusiness, CircleDollarSign, ClipboardList, CreditCard, Gift, Tag, LayoutDashboard, MapPin, MessageCircle, Settings, ShieldCheck, Users } from "lucide-react";
+import { BriefcaseBusiness, CircleDollarSign, ClipboardList, CreditCard, Flag, Gift, Tag, LayoutDashboard, MapPin, MessageCircle, Settings, ShieldCheck, Users } from "lucide-react";
 
 export const marketplaceTabs = [
   { id: "overview", label: "Overview", permission: "overview", icon: LayoutDashboard },
@@ -10,6 +10,7 @@ export const marketplaceTabs = [
   { id: "users", label: "Users", permission: "accounts", icon: Users },
   { id: "bookings", label: "Bookings", permission: "bookings", icon: ClipboardList },
   { id: "support", label: "Support inbox", permission: "support", icon: MessageCircle },
+  { id: "complaints", label: "Complaints & Disputes", permission: "support", icon: Flag },
   { id: "profile", label: "My profile", icon: BriefcaseBusiness },
 ] as const;
 

@@ -1,6 +1,7 @@
 "use client";
 
 import AdminSupport from "./AdminSupport";
+import AdminComplaints from "./AdminComplaints";
 import AdminCommerce from "./AdminCommerce";
 import AdminManagement, { activeCityOptions, ProfessionalCityAssignment, SectionData, type Location } from "./AdminManagement";
 import { availableTabs, canAccess, commerceTabs, managementTabs, type AdminTab } from "./navigation";
@@ -515,6 +516,7 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
         </div>
       </article>)}</div> : <EmptyState title={t("No accounts found.")} text={t("Registered customer and professional accounts will appear here.")} />}
     </section>}
+    {tab === "complaints" && <AdminComplaints refresh={refresh} notify={notify} />}
     {tab === "support" && <AdminSupport refresh={refresh} />}
     {tab === "bookings" && <AdminBookings bookings={bookings} stats={overview?.stats} />}
   </>;
