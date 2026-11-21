@@ -1,4 +1,5 @@
 node_modules/
+hosted-frontend/
 .env
 .env.*
 !.env.example

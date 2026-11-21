@@ -5,6 +5,7 @@
   "description": "A local services marketplace for finding and booking trusted professionals.",
   "main": "server.js",
   "scripts": {
+    "build": "node scripts/build-frontend.js",
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node scripts/seed.js",
