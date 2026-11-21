@@ -5,22 +5,17 @@ const { Location, AuditLog } = require("../models/AdminManagement");
 const asyncHandler = require("../utils/asyncHandler");
 const httpError = require("../utils/httpError");
 
-const roles = [
-  { id: "owner", name: "Owner", permissions: ["Marketplace operations", "Manage locations", "Manage admin users", "View audit logs", "Manage own settings"] },
-  { id: "operations", name: "Operations", permissions: ["Marketplace operations", "View locations", "Manage own settings"] },
-  { id: "locations", name: "Location manager", permissions: ["Manage locations", "Manage own settings"] }
-];
-const delegatedRoles = roles.slice(1).map(({ id }) => id);
-const router = express.Router();
-const adminFields = "name email phone active adminRole";
+const Worker = require("../models/Worker");
+const { roles, requireAdminAccess, activeAssignedCity } = require("../utils/adminAccess");
 
-function requireAdminRole(...allowed) {
-  return (req, res, next) => {
-    if (!allowed.includes(req.user.adminRole ?? "owner")) {
-      return res.status(403).json({ message: "Your admin role does not have access to this action." });
-    }
-    next();
-  };
+const delegatedRoles = roles.filter(({ id }) => id !== "owner");
+const router = express.Router();
+const adminFields = "name email phone active adminRole adminCity";
+
+async function assignedCity(id) {
+  const city = id ? await activeAssignedCity(validId(id)) : null;
+  if (!city) throw httpError(400, "Choose an active city in an active state.");
+  return city;
 }
 
 function recordAdminChange(req, res, next) {
@@ -52,7 +47,7 @@ function requiredText(value, max, label) {
 }
 
 function delegatedRole(value) {
-  if (!delegatedRoles.includes(value)) throw httpError(400, "Choose a delegated admin role.");
+  if (!delegatedRoles.some(({ id }) => id === value)) throw httpError(400, "Choose a delegated admin role.");
   return value;
 }
 
@@ -65,14 +60,22 @@ const locationChange = (handler) => asyncHandler(async (req, res) => {
   }
 });
 
-router.get("/roles", (req, res) => res.json({ roles }));
+const roleDefinitions = delegatedRoles.map(({ id, name, permissions }) => ({ id, name, permissions }));
 
-router.get("/locations", asyncHandler(async (req, res) => {
-  const locations = await Location.find().sort({ name: 1 }).lean();
+router.get("/roles", (req, res) => res.json({ roles: roleDefinitions }));
+
+router.get("/locations", requireAdminAccess("locations-read"), asyncHandler(async (req, res) => {
+  const city = req.user.adminRole === "city-manager"
+    ? await activeAssignedCity(req.user.adminCity)
+    : null;
+  const filter = req.user.adminRole === "city-manager"
+    ? { _id: { $in: city ? [city._id, city.parent] : [] } }
+    : {};
+  const locations = await Location.find(filter).sort({ name: 1 }).lean();
   res.json({ locations });
 }));
 
-router.post("/locations", requireAdminRole("owner", "locations"), locationChange(async (req, res) => {
+router.post("/locations", requireAdminAccess("locations-write"), locationChange(async (req, res) => {
   const name = requiredText(req.body.name, 100, "Location name");
   const parent = req.body.parent == null ? null : validId(req.body.parent);
   if (parent && !(await Location.exists({ _id: parent, parent: null }))) {
@@ -83,7 +86,7 @@ router.post("/locations", requireAdminRole("owner", "locations"), locationChange
   res.status(201).json({ location });
 }));
 
-router.patch("/locations/:id", requireAdminRole("owner", "locations"), locationChange(async (req, res) => {
+router.patch("/locations/:id", requireAdminAccess("locations-write"), locationChange(async (req, res) => {
   const changes = {};
   if (req.body.name !== undefined) changes.name = requiredText(req.body.name, 100, "Location name");
   if (typeof req.body.active === "boolean") changes.active = req.body.active;
@@ -93,42 +96,67 @@ router.patch("/locations/:id", requireAdminRole("owner", "locations"), locationC
   res.json({ location });
 }));
 
-router.get("/admin-users", requireAdminRole("owner"), asyncHandler(async (req, res) => {
-  const admins = await User.find({ role: "admin" }).select(adminFields).sort({ name: 1 }).lean();
-  res.json({ admins });
+router.get("/admin-users", requireAdminAccess("staff"), asyncHandler(async (req, res) => {
+  const [admins, locations] = await Promise.all([
+    User.find({ role: "admin" }).select(adminFields).sort({ name: 1 }).lean(),
+    Location.find().sort({ name: 1 }).lean()
+  ]);
+  res.json({ admins, roles: roleDefinitions, locations, currentAdminId: req.user.id });
 }));
 
-router.post("/admin-users", requireAdminRole("owner"), asyncHandler(async (req, res) => {
+router.post("/admin-users", requireAdminAccess("staff"), asyncHandler(async (req, res) => {
   const { password, adminRole } = req.body;
   const email = requiredText(req.body.email, 254, "Email").toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw httpError(400, "Enter a valid email.");
   if (typeof password !== "string" || password.length < 8 || Buffer.byteLength(password) > 72) {
     throw httpError(400, "Password must be at least 8 characters and at most 72 bytes.");
   }
+  const role = delegatedRole(adminRole);
+  const city = role === "city-manager" ? await assignedCity(req.body.adminCity) : null;
   const admin = await User.create({
     name: requiredText(req.body.name, 80, "Name"),
     email,
     phone: requiredText(req.body.phone, 20, "Phone"),
     password,
     role: "admin",
-    adminRole: delegatedRole(adminRole)
+    adminRole: role,
+    adminCity: city?._id
   });
   res.locals.auditTarget = [admin.id];
   res.status(201).json({ id: admin.id });
 }));
 
-router.patch("/admin-users/:id", requireAdminRole("owner"), asyncHandler(async (req, res) => {
+router.patch("/admin-users/:id", requireAdminAccess("staff"), asyncHandler(async (req, res) => {
   const changes = {};
-  if (req.body.adminRole !== undefined) changes.adminRole = delegatedRole(req.body.adminRole);
+  const unset = {};
+  if (req.body.adminRole !== undefined) {
+    changes.adminRole = delegatedRole(req.body.adminRole);
+    if (changes.adminRole === "city-manager") {
+      changes.adminCity = (await assignedCity(req.body.adminCity))._id;
+    } else {
+      unset.adminCity = 1;
+    }
+  }
   if (typeof req.body.active === "boolean") changes.active = req.body.active;
   if (!Object.keys(changes).length) throw httpError(400, "Provide a role or status.");
   const admin = await User.findOneAndUpdate(
-    { _id: validId(req.params.id), role: "admin", adminRole: { $in: delegatedRoles } },
-    { $set: changes, $inc: { sessionVersion: 1 } },
+    { _id: { $eq: validId(req.params.id), $ne: req.user._id }, role: "admin", adminRole: { $in: delegatedRoles.map(({ id }) => id) } },
+    { $set: changes, $unset: unset, $inc: { sessionVersion: 1 } },
     { new: true, runValidators: true }
   ).select(adminFields);
   if (!admin) throw httpError(404, "Delegated admin account not found.");
   res.json({ admin });
+}));
+
+router.patch("/professionals/:id/city", requireAdminAccess("staff"), asyncHandler(async (req, res) => {
+  if (req.body.cityId !== null && typeof req.body.cityId !== "string") {
+    throw httpError(400, "Send a city ID or null to remove the assignment.");
+  }
+  const city = req.body.cityId === null ? null : await assignedCity(req.body.cityId);
+  const update = city ? { $set: { adminCity: city._id } } : { $unset: { adminCity: 1 } };
+  const worker = await Worker.findOneAndUpdate({ _id: validId(req.params.id), deletedAt: { $exists: false } }, update);
+  if (!worker) throw httpError(404, "Professional profile was not found.");
+  res.json({ cityId: city?.id ?? null });
 }));
 
 router.get("/settings", (req, res) => {
@@ -146,7 +174,7 @@ router.patch("/settings", asyncHandler(async (req, res) => {
   res.json({ timeZone });
 }));
 
-router.get("/audit-logs", requireAdminRole("owner"), asyncHandler(async (req, res) => {
+router.get("/audit-logs", requireAdminAccess("audit"), asyncHandler(async (req, res) => {
   const filter = req.query.before ? { _id: { $lt: validId(req.query.before) } } : {};
   const logs = await AuditLog.find(filter).sort({ _id: -1 }).limit(51).lean();
   res.json({
@@ -156,4 +184,4 @@ router.get("/audit-logs", requireAdminRole("owner"), asyncHandler(async (req, re
   });
 }));
 
-module.exports = { router, requireAdminRole, recordAdminChange };
+module.exports = { router, recordAdminChange };

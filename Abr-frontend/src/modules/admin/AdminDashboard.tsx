@@ -1,31 +1,37 @@
 "use client";
 
 import AdminSupport from "./AdminSupport";
-import AdminManagement from "./AdminManagement";
-import { availableManagementTabs, type ManagementTab } from "./navigation";
+import AdminManagement, { activeCityOptions, ProfessionalCityAssignment, type Location } from "./AdminManagement";
+import { availableTabs, canAccess, managementTabs, type AdminTab } from "./navigation";
 import DashboardFrame from "@/components/DashboardFrame";
 import { EmptyState, LoadingLine, Metric, StatusPill, WrenchIcon } from "@/components/DashboardParts";
 import { useTranslation } from "@/components/LanguageProvider";
 import { api, formatDate, formatPrice } from "@/lib/api";
 import type { Booking, ServiceCategory, User, VerificationDocument, Worker } from "@/lib/types";
 import { ArrowRight, BriefcaseBusiness, Check, ChevronDown, CircleDollarSign, ClipboardList, MapPin, RefreshCw, ShieldCheck, Users } from "lucide-react";
-import { useEffect, useState } from "react";
-
-const marketplaceTabs = ["overview", "pending", "approved", "rejected", "categories", "users", "bookings", "support", "profile"] as const;
-type AdminTab = (typeof marketplaceTabs)[number] | ManagementTab;
+import { useEffect, useMemo, useState } from "react";
 
 function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refresh: number; onRefresh: () => void; notify: (message: string) => void }) {
   const { t, locale } = useTranslation();
   const adminRole = user.adminRole ?? "owner";
-  const canOperate = adminRole !== "locations";
+  const allowedTabs = useMemo(() => availableTabs(user), [user]);
+  const defaultTab = allowedTabs[0]?.id ?? "profile";
+  const canCreateProfessional = canAccess(user, "create-professional");
+  const canVerify = canAccess(user, "verify");
+  const canPay = canAccess(user, "payouts");
+  const canManageStaff = canAccess(user, "staff");
+  const canViewOverview = canAccess(user, "overview");
+  const canViewBookings = canAccess(user, "bookings");
   const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [cityOptions, setCityOptions] = useState<ReturnType<typeof activeCityOptions>>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [workersLoadedKey, setWorkersLoadedKey] = useState<string | null>(null);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [userRole, setUserRole] = useState<"all" | "customer" | "worker">("all");
-  const [tab, setTab] = useState<AdminTab>(canOperate ? "overview" : "locations");
+  const [tab, setTab] = useState<AdminTab>(defaultTab);
+  const [showCreateEmployee, setShowCreateEmployee] = useState(false);
   const [showCreateProfessional, setShowCreateProfessional] = useState(false);
   const [professionalCategory, setProfessionalCategory] = useState("");
   const professionalRateCategory = categories.find(({ name }) => name === professionalCategory);
@@ -55,13 +61,12 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
 
   useEffect(() => {
     function selectTab(id: string) {
-      const allowed = availableManagementTabs(adminRole).some(({ id: tabId }) => tabId === id) ||
-        (canOperate && marketplaceTabs.some((tabId) => tabId === id));
-      if (allowed) setTab(id as AdminTab);
+      const selected = allowedTabs.find((tab) => tab.id === id);
+      if (selected) setTab(selected.id);
     }
 
     function applyHash() {
-      selectTab(window.location.hash.slice(1) || (canOperate ? "overview" : "locations"));
+      selectTab(window.location.hash.slice(1) || defaultTab);
     }
 
     function selectAdminTab(event: Event) {
@@ -75,15 +80,32 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
       window.removeEventListener("hashchange", applyHash);
       window.removeEventListener("kaamghar-admin-tab", selectAdminTab);
     };
-  }, [adminRole, canOperate]);
+  }, [allowedTabs, defaultTab]);
 
   useEffect(() => {
-    if (!canOperate) return;
-    Promise.all([api<AdminOverview>("admin/overview"), api<{ bookings: Booking[] }>("admin/bookings")])
-      .then(([stats, result]) => { setOverview(stats); setBookings(result.bookings); })
-      .catch((reason: Error) => setError(reason.message))
-      .finally(() => setBusy(false));
-  }, [refresh, canOperate]);
+    if (canViewOverview) {
+      api<AdminOverview>("admin/overview")
+        .then(setOverview)
+        .catch((reason: Error) => setError(reason.message))
+        .finally(() => setBusy(false));
+    }
+    if (canViewBookings) {
+      api<{ bookings: Booking[] }>("admin/bookings")
+        .then((result) => setBookings(result.bookings))
+        .catch((reason: Error) => setError(reason.message));
+    }
+  }, [refresh, canViewOverview, canViewBookings]);
+
+  useEffect(() => {
+    if (!canManageStaff || !showProfessionalApplications) return;
+    const controller = new AbortController();
+    api<{ locations: Location[] }>("admin/locations", { signal: controller.signal })
+      .then(({ locations }) => setCityOptions(activeCityOptions(locations)))
+      .catch((reason: Error) => {
+        if (!controller.signal.aborted) setError(reason.message);
+      });
+    return () => controller.abort();
+  }, [canManageStaff, showProfessionalApplications, refresh]);
 
   useEffect(() => {
     if (!showProfessionalApplications) return;
@@ -151,7 +173,8 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
         : "Professional rejected successfully and moved to Rejected.");
       if (nextStatus === "approved") {
         setUserRole("worker");
-        setTab("users");
+        if (canManageStaff) setTab("users");
+        else setTab("approved");
       } else {
         setTab("rejected");
       }
@@ -317,24 +340,22 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
     }
   }
 
-  const tabs = canOperate ? [
-    { id: "overview", label: t("Overview") },
-    { id: "pending", label: overview?.stats.pendingApprovals ? `Pending · ${overview.stats.pendingApprovals}` : t("Pending") },
-    { id: "approved", label: t("Approved") },
-    { id: "rejected", label: t("Rejected") },
-    { id: "categories", label: t("Categories") },
-    { id: "users", label: t("Users") },
-    { id: "bookings", label: t("All bookings") },
-    { id: "support", label: t("Support inbox") },
-    { id: "profile", label: t("My profile") }
-  ] as const : [];
-  const management = availableManagementTabs(adminRole);
-  const selectedManagement = management.find((item) => item.id === tab);
+  const tabs = allowedTabs.map((item) => ({
+    ...item,
+    label: item.id === "pending" && overview?.stats.pendingApprovals ? `Pending ? ${overview.stats.pendingApprovals}` : t(item.label),
+  }));
+  const selectedManagement = managementTabs.find((item) => item.id === tab && allowedTabs.some((allowed) => allowed.id === item.id));
+
 
   return <>
     {error && <p className="inline-error">{error}</p>}
-    <div className="admin-tabs">{[...tabs, ...management.map((item) => ({ ...item, label: t(item.label) }))].map((item) => <button className={tab === item.id ? "admin-tab selected" : "admin-tab"} key={item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}{canOperate && <button className="button button-dark" onClick={() => { setShowCreateProfessional(true); setTab("users"); }}>{t("Create professional")}</button>}<button className="button button-outline tab-refresh" onClick={onRefresh}><RefreshCw size={14} />{" "}{t("Refresh")}</button></div>
-    {selectedManagement && <AdminManagement tab={selectedManagement.id} role={adminRole} refresh={refresh} notify={notify} />}
+    <div className="admin-tabs">{tabs.map((item) => <button className={tab === item.id ? "admin-tab selected" : "admin-tab"} key={item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}{canCreateProfessional && <button className="button button-dark" onClick={() => { setShowCreateProfessional(true); setTab("users"); }}>{t("Create professional")}</button>}<button className="button button-outline tab-refresh" onClick={onRefresh}><RefreshCw size={14} />{" "}{t("Refresh")}</button></div>
+    {selectedManagement && <AdminManagement
+      tab={selectedManagement.id} role={adminRole} canEditLocations={canAccess(user, "locations-write")}
+      refresh={refresh} notify={notify} showCreateEmployee={showCreateEmployee}
+      onToggleCreateEmployee={setShowCreateEmployee}
+      onCreateEmployee={canManageStaff ? () => { setShowCreateEmployee(true); setTab("admin-users"); } : undefined}
+    />}
     {tab === "overview" && <>
       <section className="admin-welcome"><div><p className="eyebrow">{t("A GOOD DAY TO GET THINGS DONE")}</p><h2>{t("The whole picture.")}</h2><span>{t("Here’s what’s happening across your neighbourhood.")}</span></div><div className="admin-welcome-art"><SparkleIcon /></div></section>
       <div className="metric-row admin-metrics"><Metric icon={Users} label={t("Customers")} value={overview?.stats.customers ?? "—"} foot={t("Registered households")} onClick={() => { setUserRole("customer"); setTab("users"); }} /><Metric icon={BriefcaseBusiness} label={t("Live professionals")} value={overview?.stats.professionals ?? "—"} foot={t("Approved service pros")} onClick={() => setTab("approved")} /><Metric icon={ShieldCheck} label={t("Needs your review")} value={overview?.stats.pendingApprovals ?? "—"} foot={`${overview?.stats.pendingDocuments ?? 0} documents pending`} onClick={() => setTab("pending")} /><Metric icon={ClipboardList} label={t("Total bookings")} value={overview?.stats.bookings ?? "—"} foot={t("Marketplace requests")} onClick={() => setTab("bookings")} /><Metric icon={CircleDollarSign} label={t("Payments received")} value={`₹${formatPrice(overview?.stats.paymentsReceived ?? 0)}`} foot={`${overview?.stats.paymentsReceivedCount ?? 0} captured bookings`} onClick={() => setTab("bookings")} /></div>
@@ -359,9 +380,10 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
             <span>{worker.profession} · {worker.category}</span>
             <small>{worker.user?.email} · {worker.user?.phone}</small>
             <small>{worker.experience} years · {worker.city} · ₹{formatPrice(worker.price)}{" "}{t("/ hour")}</small>
-            <small>Income: ₹{formatPrice(worker.earnings?.total || 0)} · Pending: ₹{formatPrice(worker.earnings?.pending || 0)} · Payment received: ₹{formatPrice(worker.earnings?.cleared || 0)}</small>
+            {canPay && <small>Income: ₹{formatPrice(worker.earnings?.total || 0)} · Pending: ₹{formatPrice(worker.earnings?.pending || 0)} · Payment received: ₹{formatPrice(worker.earnings?.cleared || 0)}</small>}
             <p>{worker.description}</p>
-            <div className="verification-documents">
+            {canManageStaff && <ProfessionalCityAssignment worker={worker} cities={cityOptions} notify={notify} />}
+            {canVerify && <div className="verification-documents">
               <strong>Verification documents ({documents.length})</strong>
               {documents.length
                 ? documents.map((document) => <div className="verification-document" key={document._id}>
@@ -375,21 +397,21 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
                   </div>)
                 : <small>{t("No documents uploaded yet.")}</small>}
               {professionalTabStatus !== "approved" && !canApprove && <small className="inline-error">Review and verify each uploaded document before approving this application.</small>}
-            </div>
+            </div>}
           </div>
           <div className="admin-pro-actions">
             <StatusPill status={worker.approvalStatus} />
-            {(worker.earnings?.pending || 0) > 0 && <button className="button button-outline" disabled={clearingPayoutId === worker._id} onClick={() => void clearPayout(worker._id, worker.name, worker.earnings?.pending || 0)}>
+            {canPay && (worker.earnings?.pending || 0) > 0 && <button className="button button-outline" disabled={clearingPayoutId === worker._id} onClick={() => void clearPayout(worker._id, worker.name, worker.earnings?.pending || 0)}>
               {clearingPayoutId === worker._id ? t("Processing…") : `Payout ₹${formatPrice(worker.earnings?.pending || 0)}`}
             </button>}
-            {professionalTabStatus === "pending"
+            {canVerify && (professionalTabStatus === "pending"
               ? <><button className="button button-dark" disabled={!canApprove} onClick={() => void moderate(worker._id, "approved")}><Check size={14} /> {canApprove ? t("Approve") : `Verify ${unverifiedCount} first`}</button><button className="button button-outline danger-button" onClick={() => void moderate(worker._id, "rejected")}>{t("Reject")}</button></>
               : professionalTabStatus === "approved"
                 ? <button className="button button-outline danger-button" onClick={() => void moderate(worker._id, "rejected")}>{t("Reject")}</button>
-                : <button className="button button-dark" disabled={!canApprove} onClick={() => void moderate(worker._id, "approved")}>{canApprove ? t("Approve profile") : `Verify ${unverifiedCount} first`}</button>}
-            <button className="button button-outline danger-button" disabled={deletingProfessionalId === worker._id} onClick={() => void deleteProfessional(worker._id, worker.name)}>
+                : <button className="button button-dark" disabled={!canApprove} onClick={() => void moderate(worker._id, "approved")}>{canApprove ? t("Approve profile") : `Verify ${unverifiedCount} first`}</button>)}
+            {canManageStaff && <button className="button button-outline danger-button" disabled={deletingProfessionalId === worker._id} onClick={() => void deleteProfessional(worker._id, worker.name)}>
               {deletingProfessionalId === worker._id ? t("Deleting…") : t("Delete")}
-            </button>
+            </button>}
           </div>
         </article>;
       })}</div> : <EmptyState title={`No ${professionalTabStatus} applications.`} text={professionalTabStatus === "pending" ? "New professional applications will appear here." : `${professionalTabStatus[0].toUpperCase()}${professionalTabStatus.slice(1)} professionals will appear here.`} />}
@@ -428,13 +450,13 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
     </>}
     {tab === "users" && <section className="dash-panel">
       <div className="panel-heading">
-        <div><p className="eyebrow">{t("ACCOUNT MANAGEMENT")}</p><h2>{t("Customers & professionals")}</h2></div>
+        <div><p className="eyebrow">{t("ACCOUNT MANAGEMENT")}</p><h2>{t(adminRole === "support" ? "Customers" : adminRole === "operations" ? "Professional accounts" : "Customers & professionals")}</h2></div>
         <div className="panel-actions">
-          <label className="select-filter">{t("Role")}<select value={userRole} onChange={(event) => setUserRole(event.target.value as "all" | "customer" | "worker")}><option value="all">{t("Everyone")}</option><option value="customer">{t("Customers")}</option><option value="worker">{t("Professionals")}</option></select><ChevronDown size={14} /></label>
-          <button className="button button-dark" onClick={() => { setProfessionalCategory(""); setShowCreateProfessional(!showCreateProfessional); }}>{showCreateProfessional ? t("Close form") : t("Create professional")}</button>
+          {canManageStaff && <label className="select-filter">{t("Role")}<select value={userRole} onChange={(event) => setUserRole(event.target.value as "all" | "customer" | "worker")}><option value="all">{t("Everyone")}</option><option value="customer">{t("Customers")}</option><option value="worker">{t("Professionals")}</option></select><ChevronDown size={14} /></label>}
+          {canCreateProfessional && <button className="button button-dark" onClick={() => { setProfessionalCategory(""); setShowCreateProfessional(!showCreateProfessional); }}>{showCreateProfessional ? t("Close form") : t("Create professional")}</button>}
         </div>
       </div>
-      {showCreateProfessional && <div className="user-create-form">
+      {canCreateProfessional && showCreateProfessional && <div className="user-create-form">
         <p className="eyebrow">{t("PROFESSIONAL ONBOARDING")}</p>
         <h3>{t("Create a professional account")}</h3>
         <p>This creates the professional login and a pending listing. The professional can sign in after creation; the listing appears on the marketplace after approval.</p>
@@ -467,18 +489,18 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
           <span>{account.role === "worker" ? `${account.worker?.profession || t("Professional")} · ${account.worker?.category || t("No category")}` : t("Customer account")}</span>
           <small>{account.email} · {account.phone}</small>
           <small>{t("Joined")}{" "}{t(formatDate(account.createdAt, locale))} · {account.worker?.approvalStatus || (account.active ? "active" : "inactive")}</small>
-          {account.role === "worker" && <small>Income: ₹{formatPrice(account.worker?.earnings?.total || 0)} · Pending: ₹{formatPrice(account.worker?.earnings?.pending || 0)} · Payment received: ₹{formatPrice(account.worker?.earnings?.cleared || 0)}</small>}
+          {canPay && account.role === "worker" && <small>Income: ₹{formatPrice(account.worker?.earnings?.total || 0)} · Pending: ₹{formatPrice(account.worker?.earnings?.pending || 0)} · Payment received: ₹{formatPrice(account.worker?.earnings?.cleared || 0)}</small>}
         </div>
         <div className="admin-pro-actions">
           <StatusPill status={account.active ? "active" : "inactive"} />
-          <button className={account.active ? "button button-outline danger-button" : "button button-dark"} onClick={() => void setUserActive(account._id, !account.active)}>{account.active ? t("Deactivate") : t("Reactivate")}</button>
-          {account.role === "worker" && account.worker?._id && (account.worker.earnings?.pending || 0) > 0 && <button className="button button-outline" disabled={clearingPayoutId === account.worker._id} onClick={() => {
+          {canManageStaff && <button className={account.active ? "button button-outline danger-button" : "button button-dark"} onClick={() => void setUserActive(account._id, !account.active)}>{account.active ? t("Deactivate") : t("Reactivate")}</button>}
+          {canPay && account.role === "worker" && account.worker?._id && (account.worker.earnings?.pending || 0) > 0 && <button className="button button-outline" disabled={clearingPayoutId === account.worker._id} onClick={() => {
             const workerId = account.worker?._id;
             if (workerId) void clearPayout(workerId, account.name, account.worker?.earnings?.pending || 0);
           }}>
             {clearingPayoutId === account.worker._id ? t("Processing…") : `Payout ₹${formatPrice(account.worker.earnings?.pending || 0)}`}
           </button>}
-          {account.role === "worker" && account.worker?._id && <button className="button button-outline danger-button" disabled={deletingProfessionalId === account.worker?._id} onClick={() => {
+          {canManageStaff && account.role === "worker" && account.worker?._id && <button className="button button-outline danger-button" disabled={deletingProfessionalId === account.worker?._id} onClick={() => {
             const workerId = account.worker?._id;
             if (workerId) void deleteProfessional(workerId, account.name);
           }}>

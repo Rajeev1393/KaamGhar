@@ -377,3 +377,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .admin-management-table { overflow-x: auto; margin: .75rem 0; }
 .admin-management-table table { width: 100%; border-collapse: collapse; text-align: left; }
 .admin-management-table :is(th, td) { padding: .6rem; border-bottom: 1px solid #e5e8df; }
+
+.admin-employee-permissions { display: grid; gap: .45rem; min-width: min(15rem, 100%); }
+.admin-employee-permissions small { color: #59665c; }

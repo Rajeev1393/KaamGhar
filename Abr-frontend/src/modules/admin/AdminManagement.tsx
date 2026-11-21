@@ -1,13 +1,13 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { LoadingLine } from "@/components/DashboardParts";
 import { api } from "@/lib/api";
-import type { AdminRole } from "@/lib/types";
+import type { AdminRole, Worker } from "@/lib/types";
 import { managementTabs, type ManagementTab } from "./navigation";
 
-type Location = { _id: string; name: string; parent: string | null; active: boolean };
-type Admin = { _id: string; name: string; email: string; active: boolean; adminRole?: AdminRole };
+export type Location = { _id: string; name: string; parent: string | null; active: boolean };
+type Admin = { _id: string; name: string; email: string; active: boolean; adminRole?: AdminRole; adminCity?: string };
 type RoleDefinition = { id: AdminRole; name: string; permissions: string[] };
 type Log = { _id: string; actor: string; method: string; route: string; target: string[]; status: number; createdAt: string };
 type Settings = { timeZone: string };
@@ -81,8 +81,7 @@ function LocationRow({ location, editable, saving, save, parentActive = true }: 
   </form>;
 }
 
-function Locations({ role, ...props }: SectionProps & { role: AdminRole }) {
-  const editable = role !== "operations";
+function Locations({ editable, ...props }: SectionProps & { editable: boolean }) {
   return <SectionData<{ locations: Location[] }> path="locations" {...props}>{({ locations }, save, saving) => {
     const states = locations.filter((location) => location.parent === null);
     function add(event: FormEvent<HTMLFormElement>) {
@@ -119,48 +118,128 @@ function Locations({ role, ...props }: SectionProps & { role: AdminRole }) {
   }}</SectionData>;
 }
 
-function DelegatedRoleOptions() {
-  return <><option value="operations">Operations</option><option value="locations">Location manager</option></>;
+type CityOption = { id: string; label: string };
+
+export function activeCityOptions(locations: Location[]): CityOption[] {
+  const states = new Map(locations.filter(({ parent, active }) => parent === null && active).map(({ _id, name }) => [_id, name]));
+  return locations.flatMap(({ _id, name, parent, active }) => {
+    const state = parent && states.get(parent);
+    return active && state ? [{ id: _id, label: `${name}, ${state}` }] : [];
+  });
 }
 
-function AdminUsers(props: SectionProps) {
-  return <SectionData<{ admins: Admin[] }> path="admin-users" {...props}>{({ admins }, save, saving) => <>
-    <form className="admin-management-form" onSubmit={(event) => {
-      event.preventDefault();
-      void save("admin-users", "POST", Object.fromEntries(new FormData(event.currentTarget)));
-    }}>
-      <h3>Create admin account</h3>
-      <label>Name<input name="name" autoComplete="off" maxLength={80} required /></label>
-      <label>Email<input name="email" type="email" autoComplete="off" maxLength={254} required /></label>
-      <label>Phone<input name="phone" type="tel" maxLength={20} required /></label>
-      <label>Password<input name="password" type="password" autoComplete="new-password" minLength={8} maxLength={72} required /></label>
-      <label>Role<select name="adminRole"><DelegatedRoleOptions /></select></label>
-      <button className="button button-dark" disabled={saving}>Create admin</button>
-    </form>
-    <div className="admin-management-group">
-      {admins.map((admin) => <form className="admin-management-row" key={admin._id} onSubmit={(event) => {
-        event.preventDefault();
-        const adminRole = new FormData(event.currentTarget).get("adminRole");
-        void save(`admin-users/${admin._id}`, "PATCH", { adminRole });
-      }}>
-        <div className="admin-management-identity"><strong>{admin.name}</strong><span>{admin.email}</span></div>
-        <span>{admin.active ? "Active" : "Disabled"}</span>
-        {!admin.adminRole || admin.adminRole === "owner" ? <span>Owner</span> : <>
-          <label>Role<select name="adminRole" defaultValue={admin.adminRole}><DelegatedRoleOptions /></select></label>
-          <button className="button button-outline" disabled={saving}>Save role</button>
-          <button className="button button-outline" type="button" disabled={saving} onClick={() => {
-            void save(`admin-users/${admin._id}`, "PATCH", { active: !admin.active });
-          }}>{admin.active ? "Disable" : "Enable"}</button>
-        </>}
-      </form>)}
-    </div>
-  </>}</SectionData>;
+function CityOptions({ cities }: { cities: CityOption[] }) {
+  return cities.map(({ id, label }) => <option key={id} value={id}>{label}</option>);
+}
+
+function EmployeeRoleFields({ roles, cities, employee }: { roles: RoleDefinition[]; cities: CityOption[]; employee?: Admin }) {
+  const [selectedRole, setSelectedRole] = useState(employee?.adminRole ?? "operations");
+  const selected = roles.find(({ id }) => id === selectedRole);
+  const city = cities.find(({ id }) => id === employee?.adminCity);
+  return <div className="admin-employee-permissions">
+    <label>Employee role<select name="adminRole" value={selectedRole} onChange={(event) => setSelectedRole(event.target.value as AdminRole)}>
+      {roles.filter(({ id }) => id !== "locations" || employee?.adminRole === id).map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+    </select></label>
+    {selectedRole === "city-manager" && <label>Assigned city
+      <select name="adminCity" required defaultValue={city?.id ?? ""}>
+        <option value="">{cities.length ? "Select a city" : "Add an active city in Locations & Cities"}</option>
+        <CityOptions cities={cities} />
+      </select>
+    </label>}
+    {selected && <small>Access: {selected.permissions.join(" ? ")}</small>}
+  </div>;
+}
+
+function roleFields(form: FormData) {
+  return { adminRole: form.get("adminRole"), adminCity: form.get("adminCity") };
+}
+
+function AdminUsers({ showCreate, setShowCreate, ...props }: SectionProps & {
+  showCreate: boolean; setShowCreate: (show: boolean) => void;
+}) {
+  return <SectionData<{ admins: Admin[]; roles: RoleDefinition[]; locations: Location[]; currentAdminId: string }> path="admin-users" {...props}>
+    {({ admins, roles, locations, currentAdminId }, save, saving) => {
+      const cities = activeCityOptions(locations);
+      return <>
+        {!showCreate && <button className="button button-dark" onClick={() => setShowCreate(true)}>Create Employee</button>}
+        {showCreate && <form className="admin-management-form" onSubmit={async (event) => {
+          event.preventDefault();
+          const created = await save("admin-users", "POST", Object.fromEntries(new FormData(event.currentTarget)));
+          if (created) setShowCreate(false);
+        }}>
+          <h3>Create Employee</h3>
+          <label>Name<input name="name" autoComplete="off" maxLength={80} required /></label>
+          <label>Email<input name="email" type="email" autoComplete="off" maxLength={254} required /></label>
+          <label>Phone<input name="phone" type="tel" maxLength={20} required /></label>
+          <label>Password<input name="password" type="password" autoComplete="new-password" minLength={8} maxLength={72} required /></label>
+          <EmployeeRoleFields roles={roles} cities={cities} />
+          <div className="admin-management-row">
+            <button className="button button-dark" disabled={saving}>Create Employee</button>
+            <button className="button button-outline" type="button" disabled={saving} onClick={() => setShowCreate(false)}>Cancel</button>
+          </div>
+        </form>}
+        <div className="admin-management-group">
+          {admins.map((admin) => {
+            const protectedAccount = !admin.adminRole || admin.adminRole === "owner" || admin._id === currentAdminId;
+            const roleName = roles.find(({ id }) => id === admin.adminRole)?.name ?? "Super Admin";
+            return <form className="admin-management-row" key={admin._id} onSubmit={(event) => {
+              event.preventDefault();
+              if (!protectedAccount) void save(`admin-users/${admin._id}`, "PATCH", roleFields(new FormData(event.currentTarget)));
+            }}>
+              <div className="admin-management-identity"><strong>{admin.name}</strong><span>{admin.email}</span></div>
+              <span>{admin.active ? "Active" : "Disabled"}</span>
+              {protectedAccount ? <span>{roleName}</span> : <>
+                <EmployeeRoleFields roles={roles} cities={cities} employee={admin} />
+                <button className="button button-outline" disabled={saving}>Save permissions</button>
+                <button className="button button-outline" type="button" disabled={saving} onClick={() => {
+                  void save(`admin-users/${admin._id}`, "PATCH", { active: !admin.active });
+                }}>{admin.active ? "Disable" : "Enable"}</button>
+              </>}
+            </form>;
+          })}
+        </div>
+      </>;
+    }}
+  </SectionData>;
+}
+
+export function ProfessionalCityAssignment({ worker, cities, notify }: {
+  worker: Worker; cities: CityOption[]; notify: SectionProps["notify"];
+}) {
+  const [cityId, setCityId] = useState(worker.adminCity ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  return <form className="admin-management admin-management-row" onSubmit={async (event) => {
+    event.preventDefault();
+    const nextCityId = String(new FormData(event.currentTarget).get("cityId") ?? "");
+    setSaving(true);
+    setError("");
+    try {
+      await api(`admin/professionals/${worker._id}/city`, {
+        method: "PATCH", body: JSON.stringify({ cityId: nextCityId || null }),
+      });
+      setCityId(nextCityId);
+      notify("City assignment saved.");
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setSaving(false);
+    }
+  }}>
+    <label>City manager assignment<select key={cityId} name="cityId" defaultValue={cityId} disabled={saving}>
+      <option value="">Unassigned</option>
+      {cityId && !cities.some(({ id }) => id === cityId) && <option value={cityId} disabled>Inactive city</option>}
+      <CityOptions cities={cities} />
+    </select></label>
+    <button className="button button-outline" disabled={saving}>Save city</button>
+    {error && <span role="alert">{error}</span>}
+  </form>;
 }
 
 function Roles({ role, ...props }: SectionProps & { role: AdminRole }) {
   return <SectionData<{ roles: RoleDefinition[] }> path="roles" {...props}>{({ roles }) =>
     <div className="admin-management-forms">{roles.map((definition) => <article className="admin-management-group" key={definition.id}>
-      <h3>{definition.name}{role === definition.id && " (your role)"}</h3>
+      <h3>{definition.name}{(role === definition.id || (role === "owner" && definition.id === "super-admin")) && " (your role)"}</h3>
       <ul>{definition.permissions.map((permission) => <li key={permission}>{permission}</li>)}</ul>
     </article>)}</div>
   }</SectionData>;
@@ -206,11 +285,23 @@ function AdminSettings(props: SectionProps) {
   }}</SectionData>;
 }
 
-export default function AdminManagement({ tab, role, ...props }: SectionProps & { tab: ManagementTab; role: AdminRole }) {
+export default function AdminManagement({
+  tab, role, canEditLocations, showCreateEmployee, onToggleCreateEmployee, onCreateEmployee, ...props
+}: SectionProps & {
+  tab: ManagementTab;
+  role: AdminRole;
+  canEditLocations: boolean;
+  showCreateEmployee: boolean;
+  onToggleCreateEmployee: (show: boolean) => void;
+  onCreateEmployee?: () => void;
+}) {
   return <section className="dash-panel admin-management">
-    <div className="panel-heading"><h2>{managementTabs.find(({ id }) => id === tab)?.label}</h2></div>
-    {tab === "locations" && <Locations {...props} role={role} />}
-    {tab === "admin-users" && <AdminUsers {...props} />}
+    <div className="panel-heading">
+      <h2>{managementTabs.find(({ id }) => id === tab)?.label}</h2>
+      {tab === "roles" && onCreateEmployee && <button className="button button-dark" onClick={onCreateEmployee}>Create Employee</button>}
+    </div>
+    {tab === "locations" && <Locations {...props} editable={canEditLocations} />}
+    {tab === "admin-users" && <AdminUsers {...props} showCreate={showCreateEmployee} setShowCreate={onToggleCreateEmployee} />}
     {tab === "roles" && <Roles {...props} role={role} />}
     {tab === "audit-logs" && <AuditLogs {...props} />}
     {tab === "settings" && <AdminSettings {...props} />}

@@ -25,6 +25,7 @@ const workerSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true, maxlength: 80 },
     profession: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true, index: true },
+    adminCity: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceLocation", index: true, select: false },
     city: { type: String, required: true, trim: true, index: true },
     experience: { type: Number, required: true, min: 0 },
     rating: { type: Number, required: true, min: 0, max: 5, default: 4.8 },

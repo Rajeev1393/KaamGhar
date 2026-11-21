@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const { roles, adminAccess } = require("../utils/adminAccess");
 
 const userSchema = new mongoose.Schema(
   {
@@ -18,7 +19,8 @@ const userSchema = new mongoose.Schema(
     passwordResetDigest: { type: String, select: false, index: { sparse: true } },
     passwordResetExpiresAt: { type: Date, select: false },
     sessionVersion: { type: Number, default: 0 },
-    adminRole: { type: String, enum: ["owner", "operations", "locations"] },
+    adminRole: { type: String, enum: roles.map(({ id }) => id) },
+    adminCity: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceLocation" },
     adminTimeZone: String,
     role: {
       type: String,
@@ -48,7 +50,7 @@ userSchema.methods.toSafeObject = function toSafeObject() {
     email: this.email,
     phone: this.phone,
     role: this.role,
-      ...(this.role === "admin" && { adminRole: this.adminRole ?? "owner" }),
+      ...(this.role === "admin" && { adminRole: this.adminRole ?? "owner", adminPermissions: adminAccess(this) }),
     worker: this.worker
   };
 };

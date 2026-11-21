@@ -1,6 +1,7 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit").rateLimit;
 const asyncHandler = require("../utils/asyncHandler");
+const { hasAdminAccess } = require("../utils/adminAccess");
 const { authenticate, authorize } = require("../middleware/authenticate");
 const bookingsController = require("../controllers/bookingsController");
 const paymentsController = require("../controllers/paymentsController");
@@ -16,7 +17,7 @@ const bookingRequestLimiter = rateLimit({
 
 router.use(authenticate);
 router.use((req, res, next) => {
-  if (req.user.role === "admin" && req.user.adminRole === "locations") {
+  if (req.user.role === "admin" && !hasAdminAccess(req.user, "booking-status")) {
     return res.status(403).json({ message: "Your admin role does not have access to bookings." });
   }
   next();

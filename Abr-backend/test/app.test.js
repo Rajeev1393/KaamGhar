@@ -774,6 +774,7 @@ test("admin professional list includes pending and cleared payout totals", async
   const originals = { workerFind: Worker.find, bookingAggregate: Booking.aggregate };
   let responseBody;
   Worker.find = () => ({
+    select() { return this; },
     populate() { return this; },
     sort() { return this; },
     limit() { return this; },
@@ -783,7 +784,7 @@ test("admin professional list includes pending and cleared payout totals", async
 
   try {
     await adminController.listProfessionals(
-      { query: { status: "approved" } },
+      { user: { role: "admin" }, query: { status: "approved" } },
       { json(body) { responseBody = body; return this; } }
     );
   } finally {
@@ -1253,4 +1254,54 @@ test("location managers can create cities and cannot access marketplace or owner
   assert.deepEqual(audit, [{
     actor: "manager@example.com", method: "POST", route: "/api/admin/locations", target: [cityId], status: 201
   }]);
+});
+
+test("employee permissions scope city records and prevent access to unrelated admin departments", async (t) => {
+  const { Location } = require("../src/models/AdminManagement");
+  const city = { _id: new mongoose.Types.ObjectId(), parent: new mongoose.Types.ObjectId(), name: "Mumbai" };
+  const employee = new User({ role: "admin", adminRole: "city-manager", adminCity: city._id });
+  let cityFilter;
+  t.mock.method(User, "findById", async () => employee);
+  t.mock.method(Location, "findOne", (filter) => ({
+    lean: async () => String(filter._id) === String(city._id) && filter.active ? city : null
+  }));
+  t.mock.method(Location, "exists", async (filter) => String(filter._id) === String(city.parent) && filter.active);
+  t.mock.method(Worker, "find", (filter) => {
+    cityFilter = filter;
+    const query = { select: () => query, sort: () => query, limit: () => query, lean: async () => [] };
+    return query;
+  });
+
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once("listening", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const origin = `http://127.0.0.1:${server.address().port}/api/admin`;
+  const headers = { Cookie: `kg_admin_session=${signToken(employee)}` };
+
+  assert.equal((await fetch(origin + "/professionals?status=approved", { headers })).status, 200);
+  assert.equal(String(cityFilter.adminCity), String(city._id));
+  for (const path of ["/bookings", "/support", "/admin-users", "/users", "/professionals/0123456789abcdef01234567/documents/0123456789abcdef01234567/file"]) {
+    assert.equal((await fetch(origin + path, { headers })).status, 403, path);
+  }
+  cityFilter = undefined;
+  employee.adminCity = undefined;
+  const unassigned = await fetch(origin + "/professionals", { headers });
+  assert.deepEqual(await unassigned.json(), { workers: [] });
+  assert.equal(cityFilter, undefined);
+});
+
+test("employee role presets keep verification, finance and staff privileges separate", () => {
+  const { hasAdminAccess } = require("../src/utils/adminAccess");
+  const access = (adminRole, permission) => hasAdminAccess({ role: "admin", adminRole }, permission);
+
+  assert.equal(access("super-admin", "staff"), true);
+  assert.equal(access("support", "support"), true);
+  assert.equal(access("support", "bookings"), false);
+  assert.equal(access("operations", "create-professional"), true);
+  assert.equal(access("operations", "verify"), false);
+  assert.equal(access("finance", "payouts"), true);
+  assert.equal(access("finance", "booking-status"), false);
+  assert.equal(access("verification", "verify"), true);
+  assert.equal(access("verification", "payouts"), false);
+  assert.equal(access("marketing", "staff"), false);
 });

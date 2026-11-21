@@ -1,5 +1,5 @@
 export type Role = "customer" | "worker" | "admin";
-export type AdminRole = "owner" | "operations" | "locations";
+export type AdminRole = "owner" | "super-admin" | "operations" | "support" | "finance" | "city-manager" | "verification" | "marketing" | "locations";
 
 export interface ServiceCategory {
   name: string;
@@ -26,6 +26,7 @@ export interface User {
   phone: string;
   role: Role;
   adminRole?: AdminRole;
+  adminPermissions?: string[];
   worker?: string;
 }
 
@@ -35,6 +36,7 @@ export interface Worker {
   profession: string;
   category: string;
   city: string;
+  adminCity?: string;
   experience: number;
   rating: number;
   reviewCount: number;

@@ -1,3 +1,4 @@
+const { hasAdminAccess, activeAssignedCity } = require("../utils/adminAccess");
 const mongoose = require("mongoose");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -212,9 +213,13 @@ async function overview(req, res) {
 }
 
 async function listBookings(req, res) {
-  const bookings = await Booking.find()
-    .populate("customer", "name email phone")
-    .populate("worker", "name profession category city")
+  const query = Booking.find().populate("worker", "name profession category city");
+  if (req.user?.adminRole === "finance") {
+    query.select("worker customerName scheduledAt status paymentStatus paymentOrderId totalAmount commissionAmount providerPayoutStatus");
+  } else {
+    query.populate("customer", "name email phone");
+  }
+  const bookings = await query
     .sort({ createdAt: -1 })
     .limit(500)
     .lean();
@@ -262,11 +267,29 @@ async function listProfessionals(req, res) {
   if (!["pending", "approved", "rejected"].includes(status)) {
     throw httpError(400, "Invalid approval status.");
   }
-  const workers = await Worker.find({ approvalStatus: status, deletedAt: { $exists: false } })
-    .populate("user", "name email phone createdAt")
+  const filter = { approvalStatus: status, deletedAt: { $exists: false } };
+  const cityManager = req.user?.adminRole === "city-manager";
+  if (cityManager) {
+    const city = await activeAssignedCity(req.user.adminCity);
+    if (!city) return res.json({ workers: [] });
+    filter.adminCity = city._id;
+  }
+  const hasAccess = (permission) => hasAdminAccess(req.user, permission);
+  const query = Worker.find(filter);
+  if (hasAccess("staff")) query.select("+adminCity");
+  if (req.user?.adminRole === "finance") {
+    query.select("name profession category city price experience approvalStatus");
+  } else if (!hasAccess("verify")) {
+    query.select("-verificationDocuments");
+  }
+  if (hasAccess("verify") || req.user?.adminRole === "operations") {
+    query.populate("user", "name email phone createdAt");
+  }
+  const workers = await query
     .sort({ createdAt: -1 })
     .limit(200)
     .lean();
+  if (!hasAccess("payouts")) return res.json({ workers });
   const payoutTotalsByWorker = await getProviderPayoutTotals(workers.map((worker) => worker._id));
   res.json({
     workers: workers.map((worker) => ({
@@ -471,7 +494,7 @@ async function sendDocument(req, res, next) {
 }
 
 async function listUsers(req, res) {
-  const role = req.query.role;
+  const role = req.user?.adminRole === "support" ? "customer" : req.user?.adminRole === "operations" ? "worker" : req.query.role;
   if (role && !["customer", "worker"].includes(role)) {
     throw httpError(400, "Choose a customer or professional role.");
   }
@@ -489,6 +512,7 @@ async function listUsers(req, res) {
     .sort({ createdAt: -1 })
     .limit(300)
     .lean();
+  if (req.user && !hasAdminAccess(req.user, "payouts")) return res.json({ users });
   const payoutTotalsByWorker = await getProviderPayoutTotals(
     users.filter((account) => account.role === "worker" && account.worker?._id)
       .map((account) => account.worker._id)

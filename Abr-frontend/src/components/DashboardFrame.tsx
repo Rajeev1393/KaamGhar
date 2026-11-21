@@ -2,10 +2,10 @@
 
 import { LanguageChooser, useTranslation } from "@/components/LanguageProvider";
 import { ThemeChooser } from "@/components/ThemeProvider";
-import { availableManagementTabs } from "@/modules/admin/navigation";
+import { availableTabs } from "@/modules/admin/navigation";
 import { ApiError, api } from "@/lib/api";
 import type { Role, User } from "@/lib/types";
-import { ArrowLeft, ArrowUpRight, BriefcaseBusiness, CalendarDays, Check, ClipboardList, LayoutDashboard, LogOut, Menu, MessageCircle, ShieldCheck, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, BriefcaseBusiness, CalendarDays, Check, ClipboardList, LayoutDashboard, LogOut, Menu, MessageCircle, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -30,9 +30,8 @@ function DashboardShell({ user, onLogout, children, title }: { user: User; onLog
   const { t } = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const adminRole = user.adminRole ?? "owner";
   const links = user.role === "admin"
-    ? [...(adminRole === "locations" ? [] : [{ label: t("Overview"), href: "/admin", icon: LayoutDashboard }, { label: t("Pending"), href: "/admin#pending", icon: Users }, { label: t("Approved"), href: "/admin#approved", icon: Users }, { label: t("Rejected"), href: "/admin#rejected", icon: Users }, { label: t("Categories"), href: "/admin#categories", icon: BriefcaseBusiness }, { label: t("Users"), href: "/admin#users", icon: Users }, { label: t("Bookings"), href: "/admin#bookings", icon: ClipboardList }, { label: t("Support inbox"), href: "/admin#support", icon: MessageCircle }, { label: t("My profile"), href: "/admin#profile", icon: BriefcaseBusiness }]), ...availableManagementTabs(adminRole).map(({ label, id, icon }) => ({ label: t(label), href: `/admin#${id}`, icon }))]
+    ? availableTabs(user).map(({ label, id, icon }) => ({ label: t(label), href: id === "overview" ? "/admin" : `/admin#${id}`, icon }))
     : user.role === "worker"
       ? [{ label: t("Overview"), href: "/provider", icon: LayoutDashboard }, { label: t("Service requests"), href: "/provider#provider-bookings", icon: ClipboardList }, { label: t("My profile"), href: "/provider/profile#profile", icon: BriefcaseBusiness }]
       : [{ label: t("Overview"), href: "/customer", icon: LayoutDashboard }, { label: t("My bookings"), href: "/customer#bookings", icon: CalendarDays }, { label: t("Find a pro"), href: "/#professionals", icon: SearchIcon }, { label: t("Support chat"), href: "/customer/support", icon: MessageCircle }];
