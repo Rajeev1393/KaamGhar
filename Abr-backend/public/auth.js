@@ -1,7 +1,9 @@
 const authForm = document.querySelector("#auth-form");
 const authMessage = document.querySelector("#auth-message");
 const roleSelect = document.querySelector("#account-role");
-let mode = new URLSearchParams(window.location.search).has("role") ? "register" : "login";
+const adminSignIn = /^\/admin\/login\/?$/i.test(window.location.pathname);
+const authPath = adminSignIn ? "/api/admin/auth" : "/api/auth";
+let mode = !adminSignIn && new URLSearchParams(window.location.search).has("role") ? "register" : "login";
 
 function setMode(nextMode) {
   mode = nextMode;
@@ -13,12 +15,12 @@ function setMode(nextMode) {
   });
   const isRegister = mode === "register";
   document.querySelector("#auth-mode-label").textContent = isRegister ? "JOIN THE NEIGHBOURHOOD" : "WELCOME BACK";
-  document.querySelector("#auth-title").textContent = isRegister ? "Create your account" : "Sign in to KaamGhar";
+  document.querySelector("#auth-title").textContent = adminSignIn ? "Admin sign in" : isRegister ? "Create your account" : "Sign in to KaamGhar";
   document.querySelector("#auth-subtitle").textContent = isRegister
     ? "One account for all your home services."
     : "Your home services, all in one place.";
   document.querySelector("#auth-submit-label").textContent = isRegister ? "Create account" : "Sign in";
-  document.querySelector("#forgot-password-link").hidden = isRegister;
+  document.querySelector("#forgot-password-link").hidden = isRegister || adminSignIn;
   authForm.elements.password.autocomplete = isRegister ? "new-password" : "current-password";
   authMessage.textContent = "";
   updateWorkerFields();
@@ -33,6 +35,10 @@ function updateWorkerFields() {
 }
 
 document.querySelectorAll(".auth-tab").forEach((tab) => {
+  if (adminSignIn && tab.dataset.mode === "register") {
+    tab.remove();
+    return;
+  }
   tab.addEventListener("click", () => setMode(tab.dataset.mode));
 });
 roleSelect.addEventListener("change", updateWorkerFields);
@@ -52,7 +58,7 @@ authForm.addEventListener("submit", async (event) => {
     delete body.role;
   }
   try {
-    const response = await fetch(`/api/auth/${mode === "register" ? "register" : "login"}`, {
+    const response = await fetch(`${authPath}/${mode === "register" ? "register" : "login"}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
@@ -82,7 +88,7 @@ if (mode === "register" && new URLSearchParams(window.location.search).get("role
   updateWorkerFields();
 }
 
-fetch("/api/auth/me")
+fetch(`${authPath}/me`)
   .then((response) => response.ok ? response.json() : null)
   .then((result) => {
     if (result && result.user) window.location.href = `/${result.user.role}`;

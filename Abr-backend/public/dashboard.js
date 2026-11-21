@@ -1,4 +1,7 @@
 const panel = document.body.dataset.panel;
+const adminPanel = panel === "admin";
+const authPath = adminPanel ? "/api/admin/auth" : "/api/auth";
+const signInPath = adminPanel ? "/admin/login" : "/login";
 const messageBox = document.querySelector("#dashboard-message");
 
 function escapeHtml(value) {
@@ -38,7 +41,7 @@ async function api(url, options = {}) {
   });
   const result = await response.json().catch(() => ({}));
   if (response.status === 401) {
-    window.location.href = "/login";
+    window.location.href = signInPath;
     throw new Error("Please sign in again.");
   }
   if (!response.ok) throw new Error(result.message || "Request failed.");
@@ -175,8 +178,8 @@ async function loadPanelData() {
 
 document.querySelector("#logout-button").addEventListener("click", async () => {
   try {
-    await api("/api/auth/logout", { method: "POST" });
-    window.location.href = "/";
+    await api(`${authPath}/logout`, { method: "POST" });
+    window.location.href = adminPanel ? signInPath : "/";
   } catch (error) {
     notify(error.message, true);
   }
@@ -261,7 +264,7 @@ if (panel === "worker") {
   });
 }
 
-api("/api/auth/me")
+api(`${authPath}/me`)
   .then(({ user }) => {
     if (user.role !== panel) {
       window.location.replace(`/${user.role}`);

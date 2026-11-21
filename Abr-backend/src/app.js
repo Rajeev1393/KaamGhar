@@ -42,7 +42,7 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/support", supportRoutes);
 
-app.get(["/login", "/register"], (req, res) => {
+app.get(["/login", "/register", "/admin/login"], (req, res) => {
   res.sendFile(require("path").join(__dirname, "..", "public", "login.html"));
 });
 app.get("/customer", (req, res) => {

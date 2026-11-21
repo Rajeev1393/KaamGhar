@@ -1163,6 +1163,7 @@ test("web panels are served and protected APIs reject anonymous requests", async
   for (const [path, title] of [
     ["/", "Ghar ke kaam"],
     ["/login", "Sign in to KaamGhar"],
+    ["/admin/login", "Sign in to KaamGhar"],
     ["/customer", "My bookings"],
     ["/worker", "Professional dashboard"],
     ["/admin", "Operations dashboard"]
@@ -1182,6 +1183,7 @@ test("web panels are served and protected APIs reject anonymous requests", async
 
   for (const path of [
     "/api/auth/me",
+    "/api/admin/auth/me",
     "/api/bookings",
     "/api/admin/overview",
     "/api/admin/categories",
