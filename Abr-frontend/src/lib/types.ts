@@ -71,6 +71,9 @@ export interface Booking {
   paymentStatus?: "unpaid" | "paid" | "refund_required";
   providerPayoutStatus?: "pending" | "cleared";
   paymentOrderId?: string;
+  paymentId?: string;
+  couponCode?: string;
+  discountAmount?: number;
   paymentOrderExpiresAt?: string;
   customer?: { name: string; phone: string; email: string };
   worker?: { _id?: string; name: string; profession: string; category?: string; city?: string; price?: number };

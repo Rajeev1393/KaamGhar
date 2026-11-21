@@ -1,5 +1,5 @@
 import type { User } from "@/lib/types";
-import { BriefcaseBusiness, ClipboardList, LayoutDashboard, MapPin, MessageCircle, Settings, ShieldCheck, Users } from "lucide-react";
+import { BriefcaseBusiness, CircleDollarSign, ClipboardList, CreditCard, Gift, Tag, LayoutDashboard, MapPin, MessageCircle, Settings, ShieldCheck, Users } from "lucide-react";
 
 export const marketplaceTabs = [
   { id: "overview", label: "Overview", permission: "overview", icon: LayoutDashboard },
@@ -21,8 +21,18 @@ export const managementTabs = [
   { id: "settings", label: "Settings", icon: Settings },
 ] as const;
 
+export const commerceTabs = [
+  { id: "transactions", label: "Payments & Transactions", permission: "transactions", icon: CreditCard },
+  { id: "payouts", label: "Professional Payouts", permission: "payouts", icon: CircleDollarSign },
+  { id: "coupons", label: "Offers & Coupons", permission: "coupons", icon: Tag },
+  { id: "referrals", label: "Referrals", permission: "referrals", icon: Gift },
+  { id: "memberships", label: "Memberships", permission: "memberships", icon: ShieldCheck },
+] as const;
+
+export type CommerceTab = (typeof commerceTabs)[number]["id"];
+
 export type ManagementTab = (typeof managementTabs)[number]["id"];
-export type AdminTab = (typeof marketplaceTabs)[number]["id"] | ManagementTab;
+export type AdminTab = (typeof marketplaceTabs)[number]["id"] | ManagementTab | CommerceTab;
 
 export function canAccess(user: User, permission: string) {
   const permissions = user.adminPermissions ?? (user.adminRole === undefined || user.adminRole === "owner" ? ["*"] : []);
@@ -30,6 +40,6 @@ export function canAccess(user: User, permission: string) {
 }
 
 export function availableTabs(user: User) {
-  return [...marketplaceTabs, ...managementTabs].filter((tab) =>
+  return [...marketplaceTabs, ...commerceTabs, ...managementTabs].filter((tab) =>
     !("permission" in tab) || canAccess(user, tab.permission));
 }

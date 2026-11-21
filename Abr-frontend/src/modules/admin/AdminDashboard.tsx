@@ -1,8 +1,9 @@
 "use client";
 
 import AdminSupport from "./AdminSupport";
-import AdminManagement, { activeCityOptions, ProfessionalCityAssignment, type Location } from "./AdminManagement";
-import { availableTabs, canAccess, managementTabs, type AdminTab } from "./navigation";
+import AdminCommerce from "./AdminCommerce";
+import AdminManagement, { activeCityOptions, ProfessionalCityAssignment, SectionData, type Location } from "./AdminManagement";
+import { availableTabs, canAccess, commerceTabs, managementTabs, type AdminTab } from "./navigation";
 import DashboardFrame from "@/components/DashboardFrame";
 import { EmptyState, LoadingLine, Metric, StatusPill, WrenchIcon } from "@/components/DashboardParts";
 import { useTranslation } from "@/components/LanguageProvider";
@@ -344,12 +345,17 @@ function AdminDashboard({ user, refresh, onRefresh, notify }: { user: User; refr
     ...item,
     label: item.id === "pending" && overview?.stats.pendingApprovals ? `Pending ? ${overview.stats.pendingApprovals}` : t(item.label),
   }));
+  const selectedCommerce = commerceTabs.find((item) => item.id === tab && allowedTabs.some((allowed) => allowed.id === item.id));
   const selectedManagement = managementTabs.find((item) => item.id === tab && allowedTabs.some((allowed) => allowed.id === item.id));
 
 
   return <>
     {error && <p className="inline-error">{error}</p>}
     <div className="admin-tabs">{tabs.map((item) => <button className={tab === item.id ? "admin-tab selected" : "admin-tab"} key={item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}{canCreateProfessional && <button className="button button-dark" onClick={() => { setShowCreateProfessional(true); setTab("users"); }}>{t("Create professional")}</button>}<button className="button button-outline tab-refresh" onClick={onRefresh}><RefreshCw size={14} />{" "}{t("Refresh")}</button></div>
+    {selectedCommerce?.id === "transactions" && <SectionData<{ bookings: Booking[] }> path="transactions" refresh={refresh} notify={notify}>
+      {({ bookings: transactions }) => <AdminBookings bookings={transactions} title="Payments & Transactions" />}
+    </SectionData>}
+    {selectedCommerce && selectedCommerce.id !== "transactions" && <AdminCommerce tab={selectedCommerce.id} refresh={refresh} notify={notify} />}
     {selectedManagement && <AdminManagement
       tab={selectedManagement.id} role={adminRole} canEditLocations={canAccess(user, "locations-write")}
       refresh={refresh} notify={notify} showCreateEmployee={showCreateEmployee}
@@ -532,7 +538,7 @@ const verificationDocumentLabels: Record<VerificationDocument["type"], string> =
 
 const formatBookingAmount = (amount: number) => "\u20B9" + formatPrice(amount);
 
-function AdminBookings({ bookings, stats }: { bookings: Booking[]; stats?: AdminStats }) {
+function AdminBookings({ bookings, stats, title = "All bookings" }: { bookings: Booking[]; stats?: AdminStats; title?: string }) {
   const { t, locale } = useTranslation();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -545,7 +551,7 @@ function AdminBookings({ bookings, stats }: { bookings: Booking[]; stats?: Admin
     (!payment || (booking.paymentStatus ?? "unpaid") === payment) &&
     (!query || [
       booking.customer?.name, booking.customerName, booking.worker?.name,
-      booking.worker?.profession, booking.address, booking.paymentOrderId,
+      booking.worker?.profession, booking.address, booking.paymentOrderId, booking.paymentId, booking.couponCode,
     ].some((value) => value?.toLowerCase().includes(query)))
   );
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -561,7 +567,7 @@ function AdminBookings({ bookings, stats }: { bookings: Booking[]; stats?: Admin
   }
 
   return <section className="dash-panel">
-      <div className="panel-heading"><div><p className="eyebrow">{t("MARKETPLACE OPERATIONS")}</p><h2>{t("All bookings")}</h2></div><span className="result-count">{t("{count} total", { count: bookings.length })}</span></div>
+      <div className="panel-heading"><div><p className="eyebrow">{t("MARKETPLACE OPERATIONS")}</p><h2>{t(title)}</h2></div><span className="result-count">{t("{count} total", { count: bookings.length })}</span></div>
       <BookingPaymentSummary stats={stats} bookings={bookings} />
       <div className="admin-booking-controls">
         <label className="admin-booking-search">{t("Search bookings")}{"          "}<input type="search" placeholder={t("Customer, provider, address or order ID")} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
@@ -591,7 +597,7 @@ function AdminBookings({ bookings, stats }: { bookings: Booking[]; stats?: Admin
           <div><strong>{booking.customer?.name || booking.customerName}</strong><span>{t("Customer")}</span></div>
           <ArrowRight size={15} />
           <div><strong>{booking.worker?.name || t("Professional")}</strong><span>{booking.worker?.profession}</span></div>
-          <div><strong>{t(formatDate(booking.scheduledAt, locale))}</strong><span>{booking.address}</span><span>{t("Razorpay Order ID:")}{" "}{booking.paymentOrderId || "\u2014"}</span><span>{booking.paymentStatus === "paid" ? t("Payment received") : booking.paymentStatus === "refund_required" ? t("Refund required") : t("Unpaid")}</span></div>
+          <div><strong>{t(formatDate(booking.scheduledAt, locale))}</strong><span>{booking.address}</span><span>{t("Razorpay Order ID:")}{" "}{booking.paymentOrderId || "\u2014"}</span><span>{booking.paymentStatus === "paid" ? t("Payment received") : booking.paymentStatus === "refund_required" ? t("Refund required") : t("Unpaid")}</span>{booking.paymentId && <span>Payment ID {booking.paymentId}</span>}{booking.couponCode && <span>{booking.couponCode} saved INR {formatPrice(booking.discountAmount ?? 0)}</span>}</div>
           <dl className="booking-payment-breakdown">
             <div><dt>{t("Customer total")}</dt><dd>{formatBookingAmount(total)}</dd></div>
             <div><dt>{t("Provider share")}</dt><dd>{formatBookingAmount(provider)}</dd></div>

@@ -11,14 +11,14 @@ type Admin = { _id: string; name: string; email: string; active: boolean; adminR
 type RoleDefinition = { id: AdminRole; name: string; permissions: string[] };
 type Log = { _id: string; actor: string; method: string; route: string; target: string[]; status: number; createdAt: string };
 type Settings = { timeZone: string };
-type SectionProps = { refresh: number; notify: (message: string) => void };
-type Save = (path: string, method: "POST" | "PATCH" | "DELETE", body?: object) => Promise<boolean>;
+export type SectionProps = { refresh: number; notify: (message: string) => void };
+export type Save = (path: string, method: "POST" | "PATCH" | "DELETE", body?: object) => Promise<boolean>;
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong. Please try again.";
 }
 
-function SectionData<T>({ path, refresh, notify, children }: SectionProps & {
+export function SectionData<T>({ path, refresh, notify, children }: SectionProps & {
   path: string;
   children: (data: T, save: Save, saving: boolean) => ReactNode;
 }) {

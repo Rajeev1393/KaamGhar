@@ -1,5 +1,6 @@
 "use client";
 
+import CustomerBenefits from "./CustomerBenefits";
 import DashboardFrame from "@/components/DashboardFrame";
 import { EmptyState, LoadingLine, Metric, StatusPill, WrenchIcon, hasActivePayment } from "@/components/DashboardParts";
 import { useTranslation } from "@/components/LanguageProvider";
@@ -109,6 +110,7 @@ function CustomerDashboard({ user, refresh, onRefresh, notify }: { user: User; r
   }
 
   return <>
+    <CustomerBenefits refresh={refresh} />
     <section className="dash-welcome customer-welcome"><div className="welcome-orb"><Home size={24} /></div><div><span className="eyebrow">HEY, {user.name.split(" ")[0].toUpperCase()} ✳</span><h2>{t("More time for the good stuff.")}</h2><p>Your home services and trusted local pros, all in one place.</p></div><Link className="button button-dark" href="/#professionals">{t("Find a pro")}{" "}<ArrowRight size={16} /></Link></section>
     <div className="metric-row"><Metric icon={ClipboardList} label={t("Total bookings")} value={bookings.length} foot={t("Your service history")} /><Metric icon={Clock3} label={t("In progress")} value={openCount} foot={t("Requests underway")} /><Metric icon={BadgeCheck} label={t("Jobs completed")} value={completedCount} foot={t("Good work, done")} /></div>
     <section className="dash-panel" id="bookings"><div className="panel-heading"><div><p className="eyebrow">{t("YOUR SERVICE HISTORY")}</p><h2>{t("Bookings & visits")}</h2></div><button className="button button-outline" onClick={onRefresh}><RefreshCw size={14} />{" "}{t("Refresh")}</button></div>
@@ -152,6 +154,7 @@ function BookingModal({ worker, user, onClose, onSuccess }: { worker: Worker; us
   const [saving, setSaving] = useState(false);
   const [minimumDateTime, setMinimumDateTime] = useState("");
   const durationHours = 1;
+  const [couponCode, setCouponCode] = useState("");
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -187,7 +190,8 @@ function BookingModal({ worker, user, onClose, onSuccess }: { worker: Worker; us
           address: form.get("address"),
           scheduledAt,
           durationHours,
-          notes: form.get("notes")
+          notes: form.get("notes"),
+          couponCode: couponCode.trim()
         })
       });
       if (order.alreadyPaid) {
@@ -258,7 +262,7 @@ function BookingModal({ worker, user, onClose, onSuccess }: { worker: Worker; us
       setSaving(false);
     }
   }
-  return <div className="modal-backdrop" onMouseDown={(event) => { if (!saving && event.target === event.currentTarget) onClose(); }}><section className="booking-modal"><button className="modal-close" disabled={saving} onClick={onClose} aria-label={t("Close")}><X size={19} /></button><p className="eyebrow">{t("LET'S GET IT SORTED")}</p><h2>{t("Book {name}.", { name: worker.name.split(" ")[0] })}</h2><p className="modal-intro">{worker.profession} · ₹{formatPrice(worker.price)}{" "}{t("per hour")}</p><form className="modal-form" onSubmit={submit}><label>{t("Service address")}<textarea name="address" required minLength={8} maxLength={300} rows={3} placeholder={t("House number, street, area, city")} /></label><label>{t("Preferred date & time")}<input name="scheduledAt" required type="datetime-local" min={minimumDateTime} onFocus={() => { if (!minimumDateTime) setMinimumDateTime(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)); }} /></label>{/* <label>How many hours?<select name="durationHours" value={durationHours} onChange={(event) => setDurationHours(Number(event.target.value))}><option value="1">1 hour · ₹{formatPrice(worker.price)}</option><option value="2">2 hours · ₹{formatPrice(worker.price * 2)}</option><option value="3">3 hours · ₹{formatPrice(worker.price * 3)}</option><option value="4">4 hours · ₹{formatPrice(worker.price * 4)}</option><option value="6">6 hours · ₹{formatPrice(worker.price * 6)}</option><option value="8">8 hours · ₹{formatPrice(worker.price * 8)}</option><option value="12">12 hours · ₹{formatPrice(worker.price * 12)}</option></select></label> */}<div>{t("Duration:")}{" "}{durationHours}{" "}{t("hour")}</div><label>{t("Anything else?")}{" "}<span className="optional-text">{t("Optional")}</span><textarea name="notes" rows={2} maxLength={500} placeholder={t("A little more about the job")} /></label>{error && <p className="inline-error">{error}</p>}<button disabled={saving} className="button button-dark modal-submit">{saving ? t("Opening payment…") : t("Pay ₹{amount} & book", { amount: formatPrice(worker.price * durationHours) })} <ArrowRight size={16} /></button><small>{t("Your booking is sent to the professional only after successful payment.")}</small></form></section></div>;
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (!saving && event.target === event.currentTarget) onClose(); }}><section className="booking-modal"><button className="modal-close" disabled={saving} onClick={onClose} aria-label={t("Close")}><X size={19} /></button><p className="eyebrow">{t("LET'S GET IT SORTED")}</p><h2>{t("Book {name}.", { name: worker.name.split(" ")[0] })}</h2><p className="modal-intro">{worker.profession} · ₹{formatPrice(worker.price)}{" "}{t("per hour")}</p><form className="modal-form" onSubmit={submit}><label>{t("Service address")}<textarea name="address" required minLength={8} maxLength={300} rows={3} placeholder={t("House number, street, area, city")} /></label><label>{t("Preferred date & time")}<input name="scheduledAt" required type="datetime-local" min={minimumDateTime} onFocus={() => { if (!minimumDateTime) setMinimumDateTime(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)); }} /></label>{/* <label>How many hours?<select name="durationHours" value={durationHours} onChange={(event) => setDurationHours(Number(event.target.value))}><option value="1">1 hour · ₹{formatPrice(worker.price)}</option><option value="2">2 hours · ₹{formatPrice(worker.price * 2)}</option><option value="3">3 hours · ₹{formatPrice(worker.price * 3)}</option><option value="4">4 hours · ₹{formatPrice(worker.price * 4)}</option><option value="6">6 hours · ₹{formatPrice(worker.price * 6)}</option><option value="8">8 hours · ₹{formatPrice(worker.price * 8)}</option><option value="12">12 hours · ₹{formatPrice(worker.price * 12)}</option></select></label> */}<div>{t("Duration:")}{" "}{durationHours}{" "}{t("hour")}</div><label>{t("Anything else?")}{" "}<span className="optional-text">{t("Optional")}</span><textarea name="notes" rows={2} maxLength={500} placeholder={t("A little more about the job")} /></label><label>Coupon code (optional)<input name="couponCode" maxLength={32} value={couponCode} onChange={(event) => setCouponCode(event.target.value)} autoComplete="off" /></label>{error && <p className="inline-error">{error}</p>}<button disabled={saving} className="button button-dark modal-submit">{saving ? t("Opening payment…") : couponCode.trim() ? "Apply coupon and pay" : t("Pay ₹{amount} & book", { amount: formatPrice(worker.price * durationHours) })} <ArrowRight size={16} /></button><small>{t("Your booking is sent to the professional only after successful payment.")}</small></form></section></div>;
 }
 
 function loadRazorpayCheckout() {

@@ -8,6 +8,7 @@ const adminController = require("../controllers/adminController");
 const support = require("../controllers/supportController");
 const { uploadSupportDocument } = require("../middleware/workerDocumentUpload");
 const { requireAdminAccess } = require("../utils/adminAccess");
+const commerce = require("./adminCommerce");
 const management = require("./adminManagement");
 
 const router = express.Router();
@@ -15,12 +16,13 @@ router.post("/auth/login", loginRateLimiter, validateLogin, asyncHandler(authCon
 router.post("/auth/logout", asyncHandler(authController.logoutAdmin));
 router.get("/auth/me", authenticate, authorize("admin"), asyncHandler(authController.me));
 router.use(authenticate, authorize("admin"));
-router.use(management.recordAdminChange, management.router);
+router.use(management.recordAdminChange, management.router, commerce);
 router.get("/support", requireAdminAccess("support"), asyncHandler(support.inbox));
 router.get("/support/:customerId", requireAdminAccess("support"), asyncHandler(support.adminThread));
 router.post("/support/:customerId", requireAdminAccess("support"), uploadSupportDocument, asyncHandler(support.adminMessage));
 router.get("/support/:customerId/:messageId/attachment", requireAdminAccess("support"), asyncHandler(support.adminAttachment));
 router.get("/overview", requireAdminAccess("overview"), asyncHandler(adminController.overview));
+router.get("/transactions", requireAdminAccess("transactions"), asyncHandler(adminController.listTransactions));
 router.get("/bookings", requireAdminAccess("bookings"), asyncHandler(adminController.listBookings));
 router.get("/categories", requireAdminAccess("create-professional"), asyncHandler(adminController.listCategories));
 router.post("/categories", requireAdminAccess("categories"), asyncHandler(adminController.createCategory));

@@ -22,6 +22,13 @@ const userSchema = new mongoose.Schema(
     adminRole: { type: String, enum: roles.map(({ id }) => id) },
     adminCity: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceLocation" },
     adminTimeZone: String,
+    referralCode: { type: String, unique: true, sparse: true },
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
+    membership: {
+      name: String,
+      benefits: String,
+      expiresAt: Date
+    },
     role: {
       type: String,
       enum: ["customer", "worker", "admin"],

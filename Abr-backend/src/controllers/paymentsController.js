@@ -4,6 +4,7 @@ const Booking = require("../models/Booking");
 const BookingCheckout = require("../models/BookingCheckout");
 const Worker = require("../models/Worker");
 const httpError = require("../utils/httpError");
+const { bookingDiscount, normalizeCode } = require("../utils/commerce");
 const { parseBookingDetails } = require("../utils/bookingDetails");
 
 function razorpayCredentials() {
@@ -81,6 +82,8 @@ async function finalizeBookingCheckout(checkoutId, payment) {
         notes: checkout.notes,
         totalAmount: checkout.totalAmount,
         commissionAmount: checkout.commissionAmount,
+        couponCode: checkout.couponCode,
+        discountAmount: checkout.discountAmount,
         paymentStatus: "paid",
         paymentOrderId: checkout.paymentOrderId,
         paymentId: payment.id,
@@ -125,13 +128,14 @@ async function syncCapturedCheckout(checkout) {
   return finalizeBookingCheckout(checkout._id, payment);
 }
 
-function sameCheckoutDetails(checkout, worker, details, totalAmount) {
+function sameCheckoutDetails(checkout, worker, details, subtotal, couponCode) {
   return checkout.worker.toString() === worker._id.toString() &&
     checkout.address === details.address &&
     checkout.scheduledAt.getTime() === details.scheduledAt.getTime() &&
     checkout.durationHours === details.durationHours &&
     checkout.notes === details.notes &&
-    checkout.totalAmount === totalAmount;
+    Math.round((checkout.totalAmount + (checkout.discountAmount ?? 0)) * 100) === subtotal &&
+    checkout.couponCode === couponCode;
 }
 
 async function createBookingOrder(req, res) {
@@ -144,9 +148,9 @@ async function createBookingOrder(req, res) {
   }, "+hourlyCommission");
   if (!worker) throw httpError(404, "This professional is not available.");
 
-  const totalAmount = worker.price * details.durationHours;
-  const amount = Math.round(totalAmount * 100);
-  if (!Number.isSafeInteger(amount) || amount < 1) {
+  const subtotal = Math.round(worker.price * details.durationHours * 100);
+  const couponCode = req.body.couponCode ? normalizeCode(req.body.couponCode) : undefined;
+  if (!Number.isSafeInteger(subtotal) || subtotal < 1) {
     throw httpError(400, "This professional has an invalid service price.");
   }
 
@@ -162,7 +166,7 @@ async function createBookingOrder(req, res) {
     }
 
     let pendingBooking;
-    if (!sameCheckoutDetails(pendingCheckout, worker, details, totalAmount)) {
+    if (!sameCheckoutDetails(pendingCheckout, worker, details, subtotal, couponCode)) {
       const pendingWorker = pendingCheckout.worker.equals(worker._id)
         ? worker
         : await Worker.findById(pendingCheckout.worker).select("name profession");
@@ -181,11 +185,16 @@ async function createBookingOrder(req, res) {
       orderId: pendingCheckout.paymentOrderId,
       amount: Math.round(pendingCheckout.totalAmount * 100),
       currency: "INR",
+      discountAmount: pendingCheckout.discountAmount,
+      couponCode: pendingCheckout.couponCode,
       pendingBooking
     });
   }
 
   const { keyId } = razorpayCredentials();
+  const commission = Math.round(Math.min(worker.hourlyCommission ?? 0, worker.price) * details.durationHours * 100);
+  const { discount, code } = await bookingDiscount(couponCode, subtotal, commission);
+  const amount = subtotal - discount;
   const checkout = new BookingCheckout({
     customer: req.user._id,
     worker: worker._id,
@@ -196,8 +205,10 @@ async function createBookingOrder(req, res) {
     scheduledAt: details.scheduledAt,
     durationHours: details.durationHours,
     notes: details.notes,
-    totalAmount,
-    commissionAmount: Math.round(Math.min(worker.hourlyCommission ?? 0, worker.price) * details.durationHours * 100) / 100,
+    totalAmount: amount / 100,
+    commissionAmount: (commission - discount) / 100,
+    couponCode: code,
+    discountAmount: discount ? discount / 100 : undefined,
     paymentOrderId: "pending"
   });
   const order = await razorpayRequest("/orders", {
@@ -227,6 +238,8 @@ async function createBookingOrder(req, res) {
     keyId,
     orderId: order.id,
     amount,
+    discountAmount: checkout.discountAmount,
+    couponCode: checkout.couponCode,
     currency: "INR"
   });
 }

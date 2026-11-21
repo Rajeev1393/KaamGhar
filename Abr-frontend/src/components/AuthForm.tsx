@@ -14,7 +14,7 @@ import type { ServiceCategory } from "@/lib/types";
 type Mode = "login" | "register";
 type AccountRole = "customer" | "worker";
 
-export default function AuthForm({ initialMode, initialRole, adminOnly = false, providerOnly = false, showThemeChooser = false }: { initialMode: Mode; initialRole: AccountRole; adminOnly?: boolean; providerOnly?: boolean; showThemeChooser?: boolean }) {
+export default function AuthForm({ initialMode, initialRole, adminOnly = false, providerOnly = false, showThemeChooser = false, initialReferralCode }: { initialMode: Mode; initialRole: AccountRole; adminOnly?: boolean; providerOnly?: boolean; showThemeChooser?: boolean; initialReferralCode?: string }) {
   const { t, language } = useTranslation();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -92,6 +92,7 @@ export default function AuthForm({ initialMode, initialRole, adminOnly = false, 
               <label>{t("Full name")}<input name="name" required minLength={2} maxLength={80} autoComplete="name" placeholder={t("How should we call you?")} /></label>
               <label>{t("Phone number")}<input name="phone" required type="tel" maxLength={20} autoComplete="tel" placeholder="+91 98765 43210" /></label>
               <fieldset className="role-picker"><legend>{t("I’m here to…")}</legend><label className={role === "customer" ? "role-option role-active" : "role-option"}><input type="radio" name="roleChoice" value="customer" checked={role === "customer"} onChange={() => setRole("customer")} />{t("Book a service")}</label><label className={role === "worker" ? "role-option role-active" : "role-option"}><input type="radio" name="roleChoice" value="worker" checked={role === "worker"} onChange={() => setRole("worker")} />{t("Offer my services")}</label></fieldset>
+              {role === "customer" && <label>Referral code (optional)<input name="referralCode" defaultValue={initialReferralCode} maxLength={32} autoComplete="off" /></label>}
               {role === "worker" && <div className="worker-register-fields">
                 <div className="form-grid-two"><label>{t("Your profession")}<input name="profession" required minLength={2} maxLength={80} placeholder={t("e.g. Expert plumber")} /></label><label>{t("Service category")}<select name="category" required defaultValue="" disabled={categories.length === 0}><option value="" disabled>{categories.length ? t("Choose a service category") : t("Loading categories…")}</option>{categories.map(({ name, label }) => <option key={name} value={name}>{t(label)}</option>)}</select>{categoryError && <small className="inline-error">Categories load nahi ho payi: {categoryError}</small>}</label></div>
                 <div className="form-grid-two"><div className="location-field"><label>{t("Your city")}<input name="city" required minLength={2} maxLength={80} value={workerCity} onChange={(event) => setWorkerCity(event.target.value)} placeholder={t("e.g. Delhi")} /></label><DetectCityButton compact onCity={setWorkerCity} /></div><label>{t("Experience")}<input name="experience" required type="number" min={0} max={60} placeholder={t("Years")} /></label></div>

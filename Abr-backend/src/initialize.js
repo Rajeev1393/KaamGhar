@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const ServiceCategory = require("./models/ServiceCategory");
 const SupportMessage = require("./models/SupportMessage");
+const { Coupon, MembershipPlan } = require("./models/Commerce");
 const { Location } = require("./models/AdminManagement");
 const { startDelivery } = require("./utils/supportWhatsApp");
 const {
@@ -31,7 +32,7 @@ async function initialize() {
   await ServiceCategory.updateMany({ active: { $exists: false } }, { $set: { active: true } });
   const categories = await ServiceCategory.find({ active: true }).select("name label price commission").sort({ name: 1 }).lean();
   setServiceCategories(categories);
-  await Promise.all([SupportMessage.init(), Location.init()]);
+  await Promise.all([SupportMessage.init(), Location.init(), Coupon.init(), MembershipPlan.init()]);
   startDelivery();
 }
 

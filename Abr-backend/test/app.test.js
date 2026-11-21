@@ -1344,3 +1344,44 @@ test("location deletion protects child cities and assignments and archives unlin
   assert.equal(changes[0].update.$set.active, false);
   assert.ok(changes[0].update.$set.deletedAt instanceof Date);
 });
+
+test("checkout coupons preserve the professional share and reject unavailable offers", async (t) => {
+  const { Coupon } = require("../src/models/Commerce");
+  const { bookingDiscount } = require("../src/utils/commerce");
+  let filter;
+  let offer = { kind: "percent", value: 20 };
+  t.mock.method(Coupon, "findOne", (query) => {
+    filter = query;
+    return { lean: async () => offer };
+  });
+
+  const total = 125000;
+  const commission = 7525;
+  const { discount, code } = await bookingDiscount(" save-20 ", total, commission);
+  assert.equal(code, "SAVE-20");
+  assert.equal(filter.code, code);
+  assert.equal(filter.active, true);
+  assert.ok(filter.$or[1].expiresAt.$gt instanceof Date);
+  assert.equal(discount, commission);
+  assert.equal((total - discount) - (commission - discount), total - commission);
+
+  offer = { kind: "fixed", value: 10.5 };
+  assert.equal((await bookingDiscount("SMALL", total, commission)).discount, 1050);
+  assert.deepEqual(await bookingDiscount(undefined, total, commission), { discount: 0 });
+  offer = null;
+  await assert.rejects(bookingDiscount("EXPIRED", total, commission), { status: 400 });
+});
+
+test("commerce access separates settlement, promotion and membership permissions", () => {
+  const { hasAdminAccess } = require("../src/utils/adminAccess");
+  const access = (adminRole, permission) => hasAdminAccess({ role: "admin", adminRole }, permission);
+
+  assert.equal(access("finance", "transactions"), true);
+  assert.equal(access("finance", "payouts"), true);
+  assert.equal(access("finance", "coupons"), false);
+  assert.equal(access("marketing", "coupons"), true);
+  assert.equal(access("marketing", "referrals"), true);
+  assert.equal(access("marketing", "payouts"), false);
+  assert.equal(access("marketing", "memberships"), false);
+  assert.equal(access("super-admin", "memberships"), true);
+});

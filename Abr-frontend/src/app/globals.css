@@ -380,3 +380,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 .admin-employee-permissions { display: grid; gap: .45rem; min-width: min(15rem, 100%); }
 .admin-employee-permissions small { color: #59665c; }
+
+.admin-commerce-forms { margin-top: 1rem; }
+.admin-management textarea { width: 100%; padding: .35rem .55rem; border: 1px solid #d5dbd2; border-radius: 5px; font: inherit; }
+.admin-management .admin-commerce-check { display: flex; align-items: center; }
+.admin-commerce-check input { width: 1rem; min-height: 1rem; }

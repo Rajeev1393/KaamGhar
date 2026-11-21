@@ -1,3 +1,6 @@
+const { randomBytes } = require("node:crypto");
+const { ReferralProgram } = require("../models/Commerce");
+const { normalizeCode } = require("../utils/commerce");
 const User = require("../models/User");
 const Worker = require("../models/Worker");
 const { signToken } = require("../utils/jwt");
@@ -30,7 +33,17 @@ async function register(req, res) {
     throw httpError(409, "An account with this email already exists.");
   }
 
-  const user = new User({ name, email, phone, password, role });
+  let referredBy;
+  if (role === "customer" && req.body.referralCode) {
+    const code = normalizeCode(req.body.referralCode);
+    if (!(await ReferralProgram.exists({ _id: "referrals", enabled: true }))) {
+      throw httpError(400, "Referrals are currently paused.");
+    }
+    const referrer = await User.findOne({ role: "customer", active: true, referralCode: code }).select("_id").lean();
+    if (!referrer) throw httpError(400, "This referral code is unavailable.");
+    referredBy = referrer._id;
+  }
+  const user = new User({ name, email, phone, password, role, referredBy });
   await user.save();
 
   let createdWorker;
@@ -97,4 +110,28 @@ function me(req, res) {
   res.json({ user: req.user.toSafeObject() });
 }
 
-module.exports = { register, login, adminLogin, logout, logoutAdmin, me };
+async function customerBenefits(req, res) {
+  const [program, referredCustomers] = await Promise.all([
+    ReferralProgram.findById("referrals").lean(),
+    User.countDocuments({ role: "customer", referredBy: req.user._id })
+  ]);
+  const membership = req.user.membership?.expiresAt > new Date() ? req.user.membership : null;
+  res.json({ referralsEnabled: Boolean(program?.enabled), referralCode: program?.enabled ? req.user.referralCode ?? null : null, referredCustomers, membership });
+}
+
+async function createReferralCode(req, res) {
+  if (!(await ReferralProgram.exists({ _id: "referrals", enabled: true }))) {
+    throw httpError(409, "Referrals are currently paused.");
+  }
+  if (req.user.referralCode) return res.json({ referralCode: req.user.referralCode });
+  const updated = await User.findOneAndUpdate(
+    { _id: req.user._id, referralCode: { $exists: false } },
+    { referralCode: randomBytes(10).toString("hex").toUpperCase() },
+    { new: true }
+  ).select("referralCode");
+  const customer = updated ?? await User.findById(req.user._id).select("referralCode");
+  if (!customer) throw httpError(404, "Customer account not found.");
+  res.json({ referralCode: customer.referralCode });
+}
+
+module.exports = { createReferralCode, customerBenefits, register, login, adminLogin, logout, logoutAdmin, me };

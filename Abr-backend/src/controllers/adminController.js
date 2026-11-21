@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const Booking = require("../models/Booking");
+const BookingCheckout = require("../models/BookingCheckout");
 const User = require("../models/User");
 const Worker = require("../models/Worker");
 const ServiceCategory = require("../models/ServiceCategory");
@@ -212,10 +213,27 @@ async function overview(req, res) {
   });
 }
 
+async function listTransactions(req, res) {
+  const projection = "worker customerName scheduledAt paymentOrderId paymentId paidAt couponCode discountAmount totalAmount commissionAmount createdAt";
+  const [paidBookings, pendingCheckouts] = await Promise.all([
+    Booking.find({ $or: [{ paymentOrderId: { $type: "string" } }, { paymentStatus: { $in: ["paid", "refund_required"] } }] })
+      .select(`${projection} status paymentStatus`).populate("worker", "name profession")
+      .sort({ createdAt: -1 }).limit(500).lean(),
+    BookingCheckout.find({ status: "pending" }).select(projection).populate("worker", "name profession")
+      .sort({ createdAt: -1 }).limit(500).lean()
+  ]);
+  const bookingOrders = new Set(paidBookings.map(({ paymentOrderId }) => paymentOrderId));
+  const pending = pendingCheckouts.filter(({ paymentOrderId }) => !bookingOrders.has(paymentOrderId))
+    .map((checkout) => ({ ...checkout, status: "pending", paymentStatus: "unpaid" }));
+  const bookings = [...paidBookings, ...pending]
+    .sort((left, right) => right.createdAt - left.createdAt).slice(0, 500);
+  res.json({ bookings });
+}
+
 async function listBookings(req, res) {
   const query = Booking.find().populate("worker", "name profession category city");
   if (req.user?.adminRole === "finance") {
-    query.select("worker customerName scheduledAt status paymentStatus paymentOrderId totalAmount commissionAmount providerPayoutStatus");
+    query.select("worker customerName scheduledAt status paymentStatus paymentOrderId paymentId paidAt couponCode discountAmount totalAmount commissionAmount providerPayoutStatus");
   } else {
     query.populate("customer", "name email phone");
   }
@@ -312,6 +330,10 @@ async function clearProfessionalPayouts(req, res) {
       throw httpError(400, "Payout reference must be between 1 and 100 characters.");
     }
   }
+  const expectedAmount = req.body?.expectedAmount;
+  if (expectedAmount !== undefined && (!Number.isSafeInteger(expectedAmount) || expectedAmount <= 0)) {
+    throw httpError(400, "Invalid payout amount.");
+  }
   const worker = await Worker.findOne({ _id: req.params.id, deletedAt: { $exists: false } }).select("_id");
   if (!worker) throw httpError(404, "Professional profile was not found.");
 
@@ -328,6 +350,12 @@ async function clearProfessionalPayouts(req, res) {
         .session(session)
         .lean();
       if (!pendingBookings.length) throw httpError(409, "There is no pending payout for this professional.");
+
+      const amount = pendingBookings.reduce((paise, booking) =>
+        paise + Math.round((booking.totalAmount || 0) * 100) - Math.round((booking.commissionAmount || 0) * 100), 0);
+      if (expectedAmount !== undefined && amount !== expectedAmount) {
+        throw httpError(409, "The payout amount changed. Refresh and check the transfer before recording it.");
+      }
 
       const clearedAt = new Date();
       const update = {
@@ -349,9 +377,7 @@ async function clearProfessionalPayouts(req, res) {
         throw httpError(409, "Payout records changed. Refresh and try again.");
       }
       payout = {
-        amount: pendingBookings.reduce((paise, booking) =>
-          paise + Math.round((booking.totalAmount || 0) * 100) - Math.round((booking.commissionAmount || 0) * 100), 0
-        ) / 100,
+        amount: amount / 100,
         bookingCount: pendingBookings.length,
         clearedAt,
         reference: reference || null
@@ -550,6 +576,7 @@ module.exports = {
   createProfessional,
   listCategories,
   listBookings,
+  listTransactions,
   listUsers,
   overview,
   clearProfessionalPayouts,

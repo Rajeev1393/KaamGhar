@@ -2,7 +2,7 @@ const express = require("express");
 const path = require("node:path");
 const { rateLimit } = require("express-rate-limit");
 const asyncHandler = require("../utils/asyncHandler");
-const { authenticate } = require("../middleware/authenticate");
+const { authenticate, authorize } = require("../middleware/authenticate");
 const { validateRegister, validateLogin } = require("../middleware/validate");
 const loginRateLimiter = require("../middleware/loginRateLimiter");
 const authController = require("../controllers/authController");
@@ -30,6 +30,8 @@ router.post("/reset-password", resetLimiter, asyncHandler(passwordResetControlle
 router.post("/register", validateRegister, asyncHandler(authController.register));
 router.post("/login", loginRateLimiter, validateLogin, asyncHandler(authController.login));
 router.post("/logout", asyncHandler(authController.logout));
+router.post("/referral-code", authenticate, authorize("customer"), asyncHandler(authController.createReferralCode));
+router.get("/benefits", authenticate, authorize("customer"), asyncHandler(authController.customerBenefits));
 router.get("/me", authenticate, asyncHandler(authController.me));
 
 module.exports = router;
