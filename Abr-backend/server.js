@@ -22,7 +22,7 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.exit(1);
 }
 
-async function start() {
+async function start(requestHandler = app) {
   await mongoose.connect(mongoUri);
   console.log("Connected to MongoDB.");
   await Promise.all(defaultServiceCategories.map(({ name, label, price }) =>
@@ -38,12 +38,16 @@ async function start() {
   setServiceCategories(categories);
   await SupportMessage.init();
   startDelivery();
-  app.listen(PORT, '0.0.0.0', () => {
+  return require("node:http").createServer(requestHandler).listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
   });
 }
 
-start().catch((error) => {
-  console.error("Could not start the backend:", error.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  start().catch((error) => {
+    console.error("Could not start the backend:", error.message);
+    process.exit(1);
+  });
+}
+
+module.exports = start;
